@@ -82,3 +82,8 @@ google-services.json
 
 # Supabase CLI
 supabase/.temp/
+
+# Assinatura de release
+*.jks
+*.keystore
+keystore.properties
