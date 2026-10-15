@@ -35,3 +35,61 @@
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import '@ionic/angular/css/palettes/dark.system.css';
+
+/* ---------------------------------------------------------------- Cofre Ônix */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');
+
+:root {
+  --ion-font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --cofre-display: 'Sora', system-ui, sans-serif;
+  --cofre-num: 'JetBrains Mono', ui-monospace, monospace;
+}
+body { background: var(--cofre-bg); color: var(--cofre-text); }
+h1, h2, h3 { font-family: var(--cofre-display); font-weight: 600; }
+
+.page { display: flex; flex-direction: column; gap: 14px; padding: 16px; max-width: 640px; margin: 0 auto; }
+.num { font-family: var(--cofre-num); font-variant-numeric: tabular-nums; }
+.muted { color: var(--cofre-muted); font-size: 13px; }
+.up { color: var(--cofre-gain); } .down { color: var(--cofre-debt); } .loan { color: var(--cofre-loan); } .gold { color: var(--cofre-gold); }
+
+.card { background: var(--cofre-surface); border: 1px solid var(--cofre-line); border-radius: 16px; padding: 14px; }
+.card.accent { border-color: var(--cofre-gold); }
+.card h2 { font-size: 15px; margin: 0 0 6px; }
+.big { font-family: var(--cofre-num); font-size: 28px; margin: 4px 0; }
+
+.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--cofre-line); }
+.row:last-child { border-bottom: 0; }
+.row .l { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.row .l > div:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 36px; height: 36px; border-radius: 10px; background: var(--cofre-surface-2); display: grid; place-items: center; flex-shrink: 0; font-size: 18px; }
+.pill { font-size: 11px; padding: 3px 8px; border-radius: 99px; background: var(--cofre-surface-2); color: var(--cofre-muted); white-space: nowrap; }
+.pill.warn { color: var(--cofre-warn); } .pill.gold { color: var(--cofre-gold); } .pill.ok { color: var(--cofre-gain); }
+.bar { height: 6px; border-radius: 99px; background: var(--cofre-surface-2); overflow: hidden; margin-top: 6px; }
+.bar > i { display: block; height: 100%; background: var(--cofre-gold); }
+
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tile { background: var(--cofre-surface); border: 1px solid var(--cofre-line); border-radius: 14px; padding: 14px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; font: inherit; font-size: 12px; color: var(--cofre-text); cursor: pointer; }
+.tile ion-icon { font-size: 26px; }
+.tile:active { transform: scale(.97); }
+
+.btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--cofre-line); background: var(--cofre-surface); color: var(--cofre-text); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; justify-content: center; }
+.btn.primary { background: var(--cofre-gold); color: var(--cofre-on-gold); border-color: var(--cofre-gold); }
+.btn.danger { color: var(--cofre-debt); }
+.btn.block { width: 100%; }
+.btn:disabled { opacity: .6; }
+
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form .full { grid-column: 1 / -1; }
+.form label, label.field { font-size: 12px; color: var(--cofre-muted); display: flex; flex-direction: column; gap: 5px; }
+.form input, .form select, input.field, select.field {
+  font: 500 15px var(--cofre-num); background: var(--cofre-surface-2); border: 1px solid var(--cofre-line);
+  color: var(--cofre-text); border-radius: 10px; padding: 10px; width: 100%;
+}
+.form input[type=text], .form input:not([inputmode]) { font-family: var(--ion-font-family); }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 4px 0; }
+.check ion-icon { flex-shrink: 0; margin-top: 2px; font-size: 16px; }
+.error { color: var(--cofre-debt); font-size: 13px; }
+.empty { text-align: center; padding: 28px 12px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.empty ion-icon { font-size: 36px; color: var(--cofre-gold); }
+:focus-visible { outline: 2px solid var(--cofre-gold); outline-offset: 2px; }
+@media (max-width: 380px) { .form { grid-template-columns: 1fr; } }

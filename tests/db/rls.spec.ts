@@ -149,3 +149,28 @@ describe('auditoria', () => {
     await expect(as(db, joao, (tx) => tx.query('delete from audit_log'))).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('set_installment_paid', () => {
+  it('editor paga parcela e o saldo cai; leitor não consegue', async () => {
+    const debtId = await as(db, joao, async (tx) => {
+      const d = await addDebt(tx, { name: 'Parcelada' });
+      await tx.query(`insert into installments (debt_id, n, payment_cents, interest_cents, amortization_cents) values ($1, 1, 1000, 100, 900)`, [d.id]);
+      return d.id;
+    });
+    const inst = await as(db, joao, (tx) => one<{ id: string }>(tx, 'select id from installments where debt_id = $1', [debtId]));
+
+    await expect(as(db, leitor, (tx) => tx.query('select set_installment_paid($1, true)', [inst.id]))).rejects.toThrow();
+    await as(db, esposa, (tx) => tx.query('select set_installment_paid($1, true)', [inst.id]));
+    await as(db, esposa, (tx) => tx.query('select set_installment_paid($1, true)', [inst.id])); // idempotente
+
+    const d = await as(db, joao, (tx) => one<{ balance_cents: string }>(tx, 'select balance_cents from debts where id = $1', [debtId]));
+    expect(Number(d.balance_cents)).toBe(2_740_000 - 900);
+  });
+});
+
+describe('e-mail dos membros', () => {
+  it('fica registrado para o dono e para quem aceitou convite', async () => {
+    const rows = await as(db, esposa, async (tx) => (await tx.query<{ email: string }>('select email from household_members order by email')).rows);
+    expect(rows.map((r) => r.email)).toEqual(expect.arrayContaining([joao.email, esposa.email]));
+  });
+});

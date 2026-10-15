@@ -3,34 +3,18 @@ import { TabsPage } from './tabs.page';
 
 export const routes: Routes = [
   {
-    path: 'tabs',
+    path: '',
     component: TabsPage,
     children: [
-      {
-        path: 'tab1',
-        loadComponent: () =>
-          import('../tab1/tab1.page').then((m) => m.Tab1Page),
-      },
-      {
-        path: 'tab2',
-        loadComponent: () =>
-          import('../tab2/tab2.page').then((m) => m.Tab2Page),
-      },
-      {
-        path: 'tab3',
-        loadComponent: () =>
-          import('../tab3/tab3.page').then((m) => m.Tab3Page),
-      },
-      {
-        path: '',
-        redirectTo: '/tabs/tab1',
-        pathMatch: 'full',
-      },
+      { path: 'inicio', loadComponent: () => import('../pages/home/home.page').then((m) => m.HomePage) },
+      { path: 'dividas', loadComponent: () => import('../pages/debts/debts.page').then((m) => m.DebtsPage) },
+      { path: 'dividas/nova', loadComponent: () => import('../pages/debts/debt-new.page').then((m) => m.DebtNewPage) },
+      { path: 'dividas/:id', loadComponent: () => import('../pages/debts/debt-detail.page').then((m) => m.DebtDetailPage) },
+      { path: 'lar', loadComponent: () => import('../pages/household/household.page').then((m) => m.HouseholdPage) },
+      { path: 'ia', data: { title: 'Assistente', text: 'O chat com a IA (DeepSeek) chega na próxima etapa.' }, loadComponent: () => import('../pages/soon/soon.page').then((m) => m.SoonPage) },
+      { path: 'investir', data: { title: 'Investimentos', text: 'Carteira e reserva de emergência chegam em breve.' }, loadComponent: () => import('../pages/soon/soon.page').then((m) => m.SoonPage) },
+      { path: 'docs', data: { title: 'Documentos', text: 'Anexar faturas e contratos chega em breve.' }, loadComponent: () => import('../pages/soon/soon.page').then((m) => m.SoonPage) },
+      { path: '', redirectTo: 'inicio', pathMatch: 'full' },
     ],
-  },
-  {
-    path: '',
-    redirectTo: '/tabs/tab1',
-    pathMatch: 'full',
   },
 ];

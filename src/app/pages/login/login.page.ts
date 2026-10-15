@@ -77,6 +77,8 @@ export class LoginPage {
   }
 
   async done(): Promise<void> {
-    await this.router.navigateByUrl('/', { replaceUrl: true });
+    const next = sessionStorage.getItem('cofre.after_login') ?? '/';
+    sessionStorage.removeItem('cofre.after_login');
+    await this.router.navigateByUrl(next, { replaceUrl: true });
   }
 }

@@ -19,6 +19,14 @@ export class AppComponent {
       if (this.auth.locked()) void this.router.navigateByUrl('/bloqueado', { replaceUrl: true });
     });
     effect(() => {
+      // Depois do login pelo navegador (OAuth), volta ao destino salvo, como um link de convite.
+      const next = sessionStorage.getItem('cofre.after_login');
+      if (this.auth.signedIn() && next) {
+        sessionStorage.removeItem('cofre.after_login');
+        void this.router.navigateByUrl(next, { replaceUrl: true });
+      }
+    });
+    effect(() => {
       // Sessão encerrada (logout, token revogado, outro aparelho): volta para o login.
       if (this.auth.ready() && !this.auth.signedIn() && !this.router.url.startsWith('/login')) {
         void this.router.navigateByUrl('/login', { replaceUrl: true });
