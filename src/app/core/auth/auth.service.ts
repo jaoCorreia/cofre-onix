@@ -55,7 +55,7 @@ export class AuthService {
     const rawNonce = crypto.randomUUID();
     const res = await SocialLogin.login({
       provider: 'google',
-      options: { scopes: ['email', 'profile'], nonce: await sha256Hex(rawNonce) },
+      options: { nonce: await sha256Hex(rawNonce) }, // escopos padrão (email, profile)
     });
     const idToken = res.result.responseType === 'online' ? res.result.idToken : null;
     if (!idToken) throw new Error('O Google não devolveu o token de identidade.');

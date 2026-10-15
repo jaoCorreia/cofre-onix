@@ -64,7 +64,9 @@ export class LoginPage {
       if (await this.auth.biometryAvailable()) this.step.set('biometric');
       else await this.done();
     } catch (e) {
-      this.error.set('Não deu para entrar com o Google. Tente de novo.');
+      // Mostra o motivo real: ajuda a diagnosticar configuração do Google/Supabase.
+      const detail = e instanceof Error ? e.message : JSON.stringify(e);
+      this.error.set(`Não deu para entrar com o Google. Detalhe: ${detail}`);
       console.error(e);
     } finally {
       this.busy.set(false);
