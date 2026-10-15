@@ -79,3 +79,6 @@ src/environments/env.generated.ts
 /secrets/
 client_secret_*.json
 google-services.json
+
+# Supabase CLI
+supabase/.temp/
