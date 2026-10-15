@@ -64,6 +64,18 @@ export class AuthService {
     if (error) throw error;
   }
 
+  // ------------------------------------------------------------ Código por e-mail
+  /** Envia um código de 6 dígitos. No primeiro acesso, a conta é criada. */
+  async sendEmailCode(email: string): Promise<void> {
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    if (error) throw error;
+  }
+
+  async verifyEmailCode(email: string, code: string): Promise<void> {
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    if (error) throw error;
+  }
+
   async signOut(): Promise<void> {
     await supabase.auth.signOut({ scope: 'local' });
     if (isNative) {
