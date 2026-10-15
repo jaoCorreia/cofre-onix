@@ -74,3 +74,8 @@ Thumbs.db
 .env.*
 !.env.example
 src/environments/env.generated.ts
+
+# Credenciais (nunca versionar)
+/secrets/
+client_secret_*.json
+google-services.json
