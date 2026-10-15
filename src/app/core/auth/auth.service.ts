@@ -1,13 +1,15 @@
 import { Injectable, computed, signal } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
 import { SocialLogin } from '@capgo/capacitor-social-login';
-import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
+import { BiometricAuth, BiometryErrorType } from '@aparajita/capacitor-biometric-auth';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 import { isNative, supabase } from '../supabase';
 import { environment } from '../../../environments/environment';
 import { afterBiometricAttempt, LockState, shouldLockOnResume, UnlockOutcome } from '../../../domain/lock-policy';
 
 const BIOMETRIC_FLAG = 'cofre.biometric_enabled';
+
+type PromptResult = 'ok' | 'failed' | 'cancelled' | 'lockout';
 
 async function sha256Hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -100,7 +102,7 @@ export class AuthService {
   /** Ativa só depois de uma leitura bem-sucedida da digital. */
   async enableBiometric(): Promise<boolean> {
     if (!(await this.biometryAvailable())) return false;
-    if (!(await this.prompt('Confirme sua digital para ativar o desbloqueio'))) return false;
+    if ((await this.prompt('Confirme sua digital para ativar o desbloqueio')) !== 'ok') return false;
     await SecureStorage.setItem(BIOMETRIC_FLAG, '1');
     this.lock.biometricEnabled = true;
     return true;
@@ -111,9 +113,12 @@ export class AuthService {
     this.lock.biometricEnabled = false;
   }
 
-  async unlock(): Promise<UnlockOutcome> {
-    const ok = await this.prompt('Desbloquear o Cofre Ônix');
-    const r = afterBiometricAttempt(this.lock, ok);
+  async unlock(): Promise<UnlockOutcome | 'cancelled' | 'lockout'> {
+    const result = await this.prompt('Desbloquear o Cofre Ônix');
+    // Cancelar (pelo usuário ou pelo sistema) não é digital errada: não conta tentativa.
+    if (result === 'cancelled') return 'cancelled';
+    if (result === 'lockout') return 'lockout';
+    const r = afterBiometricAttempt(this.lock, result === 'ok');
     this.lock = r.state;
     if (r.outcome === 'unlocked') this.locked.set(false);
     if (r.outcome === 'require_google') await this.signOut();
@@ -122,7 +127,7 @@ export class AuthService {
 
   /** Pede a digital de novo antes de ações sensíveis (apagar, convidar, exportar). */
   async confirmSensitive(reason: string): Promise<boolean> {
-    return !isNative || !this.lock.biometricEnabled || this.prompt(reason);
+    return !isNative || !this.lock.biometricEnabled || (await this.prompt(reason)) === 'ok';
   }
 
   onBackground(): void {
@@ -134,7 +139,15 @@ export class AuthService {
     else this.lock.backgroundedAt = null;
   }
 
-  private async prompt(reason: string): Promise<boolean> {
+  private inFlight: Promise<PromptResult> | null = null;
+
+  /** Um pedido de digital por vez: chamadas simultâneas reaproveitam o mesmo resultado. */
+  private prompt(reason: string): Promise<PromptResult> {
+    this.inFlight ??= this.doPrompt(reason).finally(() => (this.inFlight = null));
+    return this.inFlight;
+  }
+
+  private async doPrompt(reason: string): Promise<PromptResult> {
     try {
       await BiometricAuth.authenticate({
         reason,
@@ -143,9 +156,12 @@ export class AuthService {
         cancelTitle: 'Cancelar',
         allowDeviceCredential: false,
       });
-      return true;
-    } catch {
-      return false;
+      return 'ok';
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === BiometryErrorType.userCancel || code === BiometryErrorType.systemCancel || code === BiometryErrorType.appCancel) return 'cancelled';
+      if (code === BiometryErrorType.biometryLockout) return 'lockout';
+      return 'failed';
     }
   }
 }

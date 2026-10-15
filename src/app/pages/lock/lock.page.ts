@@ -35,14 +35,31 @@ export class LockPage implements OnInit {
   readonly message = signal('');
 
   ngOnInit(): void {
-    void this.unlock();
+    // Espera o app terminar de abrir: se a janela da digital surgir durante a abertura,
+    // o Android pode cancelá-la sozinho.
+    setTimeout(() => void this.unlock(), 400);
   }
 
   async unlock(): Promise<void> {
+    this.message.set('');
     const outcome = await this.auth.unlock();
-    if (outcome === 'unlocked') await this.router.navigateByUrl('/', { replaceUrl: true });
-    else if (outcome === 'retry') this.message.set('Digital não reconhecida. Tente de novo.');
-    else await this.router.navigateByUrl('/login', { replaceUrl: true });
+    switch (outcome) {
+      case 'unlocked':
+        await this.router.navigateByUrl('/', { replaceUrl: true });
+        break;
+      case 'retry':
+        this.message.set('Digital não reconhecida. Tente de novo.');
+        break;
+      case 'cancelled':
+        this.message.set('Toque em Desbloquear quando quiser continuar.');
+        break;
+      case 'lockout':
+        this.message.set('Muitas tentativas. Desbloqueie o celular com o PIN e tente de novo, ou entre com Google.');
+        break;
+      case 'require_google':
+        await this.router.navigateByUrl('/login', { replaceUrl: true });
+        break;
+    }
   }
 
   async useGoogle(): Promise<void> {

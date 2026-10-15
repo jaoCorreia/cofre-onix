@@ -174,3 +174,18 @@ describe('e-mail dos membros', () => {
     expect(rows.map((r) => r.email)).toEqual(expect.arrayContaining([joao.email, esposa.email]));
   });
 });
+
+describe('IA', () => {
+  it('ai_consume conta mensagens e respeita o limite diário', async () => {
+    const results = [];
+    for (let k = 0; k < 3; k++) results.push(await as(db, leitor, async (tx) => (await one<{ ok: boolean }>(tx, 'select ai_consume(2) ok')).ok));
+    expect(results).toEqual([true, true, false]);
+  });
+
+  it('ai_saved: editor salva, leitor vê mas não salva, estranho não vê', async () => {
+    await as(db, esposa, (tx) => tx.query(`insert into ai_saved (household_id, kind, title, spec) values ($1, 'chart', 'Dívidas', '{}')`, [hh]));
+    await as(db, leitor, async (tx) => expect(await count(tx, 'ai_saved')).toBe(1));
+    await expect(as(db, leitor, (tx) => tx.query(`insert into ai_saved (household_id, kind, title, spec) values ($1, 'chart', 'x', '{}')`, [hh]))).rejects.toThrow();
+    await as(db, estranho, async (tx) => expect(await count(tx, 'ai_saved')).toBe(0));
+  });
+});

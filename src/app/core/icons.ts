@@ -1,6 +1,6 @@
 import { addIcons } from 'ionicons';
 import {
-  addOutline, alertCircleOutline, arrowBackOutline, bookOutline, carOutline, cardOutline, cashOutline,
+  addOutline, alertCircleOutline, arrowBackOutline, arrowForwardOutline, bookOutline, carOutline, cardOutline, cashOutline,
   checkmarkCircleOutline, chevronForwardOutline, cutOutline, documentTextOutline, homeOutline, lockClosedOutline,
   medkitOutline, peopleOutline, phonePortraitOutline, receiptOutline, schoolOutline, sparklesOutline,
   swapHorizontalOutline, trashOutline, trendingUpOutline, walletOutline, copyOutline, logOutOutline, fingerPrintOutline,
@@ -11,7 +11,7 @@ export const DEBT_ICONS = ['car-outline', 'card-outline', 'home-outline', 'schoo
 
 export function registerIcons(): void {
   addIcons({
-    addOutline, alertCircleOutline, arrowBackOutline, bookOutline, carOutline, cardOutline, cashOutline,
+    addOutline, alertCircleOutline, arrowBackOutline, arrowForwardOutline, bookOutline, carOutline, cardOutline, cashOutline,
     checkmarkCircleOutline, chevronForwardOutline, cutOutline, documentTextOutline, homeOutline, lockClosedOutline,
     medkitOutline, peopleOutline, phonePortraitOutline, receiptOutline, schoolOutline, sparklesOutline,
     swapHorizontalOutline, trashOutline, trendingUpOutline, walletOutline, copyOutline, logOutOutline, fingerPrintOutline,

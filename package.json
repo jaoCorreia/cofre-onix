@@ -16,7 +16,8 @@
     "prestart": "npm run env",
     "prebuild": "npm run env",
     "pretest": "npm run env",
-    "screenshots": "npm run build && node scripts/store-screenshots.mjs"
+    "screenshots": "npm run build && node scripts/store-screenshots.mjs",
+    "build:shared": "node scripts/build-shared.mjs"
   },
   "private": true,
   "dependencies": {
