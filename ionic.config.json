@@ -1,0 +1,7 @@
+{
+  "name": "cofre-onix",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular-standalone"
+}
