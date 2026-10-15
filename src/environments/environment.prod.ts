@@ -1,8 +1,7 @@
-﻿export const environment = {
+import { publicEnv } from './env.generated';
+
+export const environment = {
   production: true,
-  supabase: {
-    url: 'https://ukjmrbvdntsvekpljjqb.supabase.co',
-    // Chave pública (publishable/anon). Cole aqui a do painel: Project Settings > API.
-    anonKey: '',
-  },
+  supabase: { url: publicEnv.SUPABASE_URL, anonKey: publicEnv.SUPABASE_ANON_KEY },
+  googleWebClientId: publicEnv.GOOGLE_WEB_CLIENT_ID,
 };

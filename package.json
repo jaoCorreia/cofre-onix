@@ -10,7 +10,12 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "test:domain": "vitest run --config vitest.domain.config.ts"
+    "test:domain": "vitest run --config vitest.domain.config.ts",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "env": "node scripts/gen-env.mjs",
+    "prestart": "npm run env",
+    "prebuild": "npm run env",
+    "pretest": "npm run env"
   },
   "private": true,
   "dependencies": {
@@ -37,6 +42,7 @@
     "@angular/compiler-cli": "22.1.7",
     "@angular/language-service": "22.1.7",
     "@capacitor/cli": "8.5.3",
+    "@electric-sql/pglite": "^0.2.17",
     "@ionic/angular-toolkit": "^13.0.0",
     "angular-eslint": "22.5.0",
     "eslint": "^10.10.0",
