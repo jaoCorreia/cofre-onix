@@ -1,2 +1,42 @@
-// For information on how to create your own theme, please refer to:
-// https://ionicframework.com/docs/theming/
+// Paleta "Ônix dourado". Escuro por padrão; claro quando o sistema pede.
+:root {
+  --cofre-bg: #121212;
+  --cofre-surface: #1e1c19;
+  --cofre-surface-2: #2a2722;
+  --cofre-line: #34302a;
+  --cofre-text: #f2efe9;
+  --cofre-muted: #a8a29e;
+  --cofre-gold: #d4a84b;
+  --cofre-on-gold: #2e2108;
+  --cofre-gain: #22c55e;
+  --cofre-debt: #ef4444;
+  --cofre-loan: #60a5fa;
+  --cofre-warn: #f59e0b;
+
+  --ion-background-color: var(--cofre-bg);
+  --ion-text-color: var(--cofre-text);
+  --ion-color-primary: var(--cofre-gold);
+  --ion-color-primary-contrast: var(--cofre-on-gold);
+  --ion-toolbar-background: var(--cofre-bg);
+  --ion-tab-bar-background: var(--cofre-surface);
+  --ion-tab-bar-color-selected: var(--cofre-gold);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --cofre-bg: #faf8f4;
+    --cofre-surface: #ffffff;
+    --cofre-surface-2: #f1ece2;
+    --cofre-line: #e4ddd0;
+    --cofre-text: #1c1917;
+    --cofre-muted: #57534e;
+    --cofre-gold: #a67c1e;
+    --cofre-on-gold: #ffffff;
+    --cofre-gain: #15803d;
+    --cofre-debt: #b91c1c;
+    --cofre-loan: #1d4ed8;
+    --cofre-warn: #b45309;
+    color-scheme: light;
+  }
+}
