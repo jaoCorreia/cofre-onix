@@ -72,7 +72,7 @@ h1, h2, h3 { font-family: var(--cofre-display); font-weight: 600; }
 .tile ion-icon { font-size: 26px; }
 .tile:active { transform: scale(.97); }
 
-.btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--cofre-line); background: var(--cofre-surface); color: var(--cofre-text); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; justify-content: center; }
+.btn { text-decoration: none; font: inherit; font-weight: 600; font-size: 14px; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--cofre-line); background: var(--cofre-surface); color: var(--cofre-text); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; justify-content: center; }
 .btn.primary { background: var(--cofre-gold); color: var(--cofre-on-gold); border-color: var(--cofre-gold); }
 .btn.danger { color: var(--cofre-debt); }
 .btn.block { width: 100%; }
