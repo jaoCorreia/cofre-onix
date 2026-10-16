@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { DocumentKind, ExtractedDocument, normalizeExtraction, sha256Hex } from '../../../domain/document-extraction';
+import { DocumentKind, excerptForExtraction, ExtractedDocument, normalizeExtraction, sha256Hex } from '../../../domain/document-extraction';
 import { supabase } from '../supabase';
 import { HouseholdService } from './household.service';
 import { DocumentRow } from './models';
@@ -40,7 +40,7 @@ export class DocumentsService {
       pdfjs.GlobalWorkerOptions.workerSrc = 'assets/vendor/pdf.worker.min.mjs'; // copiado por scripts/copy-assets.mjs
       const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
       const pages: string[] = [];
-      for (let p = 1; p <= Math.min(pdf.numPages, 15); p++) {
+      for (let p = 1; p <= Math.min(pdf.numPages, 40); p++) {
         const content = await (await pdf.getPage(p)).getTextContent();
         pages.push(content.items.map((it) => ('str' in it ? it.str : '')).join(' '));
       }
@@ -63,7 +63,7 @@ export class DocumentsService {
   /** Envia só o texto para a IA extrair os campos; o arquivo não sai do aparelho nesta etapa. */
   async extract(text: string): Promise<ExtractedDocument> {
     const { data, error } = await supabase.functions.invoke('chat', {
-      body: { household_id: this.household.currentId(), action: 'extract_document', text: text.slice(0, MAX_TEXT) },
+      body: { household_id: this.household.currentId(), action: 'extract_document', text: excerptForExtraction(text, MAX_TEXT) },
     });
     if (error) {
       const ctx = (error as { context?: Response }).context;

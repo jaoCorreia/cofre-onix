@@ -2599,6 +2599,33 @@ function parseJsonObject(text2) {
     return null;
   }
 }
+var TOP = /vencimento[^\n]{0,40}?\d{2}\/\d{2}\/\d{4}|\bprice\b|\bsac\b|sistema de amortiza|primeir[oa] (?:parcela|vencimento)/gi;
+var STRONG = /vencimento|\bprice\b|\bsac\b|sistema de amortiza|\bcet\b|custo efetivo|valor (?:total|liberado|financiado|do empr[eé]stimo)|quantidade de parcelas|prazo/gi;
+var WEAK = /parcela|presta[cç][aã]o|taxa|juros/gi;
+function excerptForExtraction(text2, maxChars = 12e3, headChars = 6e3, window = 180) {
+  const clean = text2.replace(/[ \t]+/g, " ");
+  if (clean.length <= maxChars) return clean;
+  const head = clean.slice(0, headChars);
+  const rest = clean.slice(headChars);
+  const picked = [];
+  let budget = maxChars - head.length;
+  const overlaps = (s, e) => picked.some(([a, b]) => s < b && e > a);
+  for (const re of [TOP, STRONG, WEAK]) {
+    for (const m of rest.matchAll(re)) {
+      const at = headChars + (m.index ?? 0);
+      const s = Math.max(headChars, at - window);
+      const e = Math.min(clean.length, at + window);
+      if (overlaps(s, e)) continue;
+      const cost = e - s + SEP.length;
+      if (cost > budget) continue;
+      picked.push([s, e]);
+      budget -= cost;
+    }
+  }
+  picked.sort((a, b) => a[0] - b[0]);
+  return head + picked.map(([s, e]) => SEP + clean.slice(s, e)).join("");
+}
+var SEP = "\n[...]\n";
 
 // src/domain/markdown.ts
 var ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -2740,6 +2767,7 @@ export {
   adviseExtraMoney,
   annualToMonthly,
   evaluateFormula,
+  excerptForExtraction,
   formatBRL,
   formatBRLCompact,
   formatPercent,

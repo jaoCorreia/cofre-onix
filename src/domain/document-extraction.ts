@@ -94,3 +94,41 @@ export function parseJsonObject(text: string | null | undefined): Record<string,
     return null;
   }
 }
+
+// Prioridade: 1) datas de vencimento e sistema de amortização; 2) demais termos decisivos;
+// 3) termos frequentes ("parcela", "taxa"), só se sobrar espaço.
+const TOP = /vencimento[^\n]{0,40}?\d{2}\/\d{2}\/\d{4}|\bprice\b|\bsac\b|sistema de amortiza|primeir[oa] (?:parcela|vencimento)/gi;
+const STRONG = /vencimento|\bprice\b|\bsac\b|sistema de amortiza|\bcet\b|custo efetivo|valor (?:total|liberado|financiado|do empr[eé]stimo)|quantidade de parcelas|prazo/gi;
+const WEAK = /parcela|presta[cç][aã]o|taxa|juros/gi;
+
+/**
+ * Recorte do texto enviado à IA: o começo do documento (onde fica o resumo) mais trechos
+ * ao redor de palavras-chave no resto. Contratos longos trazem prazos e sistema de
+ * amortização só nas páginas finais.
+ */
+export function excerptForExtraction(text: string, maxChars = 12_000, headChars = 6_000, window = 180): string {
+  const clean = text.replace(/[ \t]+/g, ' ');
+  if (clean.length <= maxChars) return clean;
+  const head = clean.slice(0, headChars);
+  const rest = clean.slice(headChars);
+  const picked: [number, number][] = [];
+  let budget = maxChars - head.length;
+
+  const overlaps = (s: number, e: number) => picked.some(([a, b]) => s < b && e > a);
+  for (const re of [TOP, STRONG, WEAK]) {
+    for (const m of rest.matchAll(re)) {
+      const at = headChars + (m.index ?? 0);
+      const s = Math.max(headChars, at - window);
+      const e = Math.min(clean.length, at + window);
+      if (overlaps(s, e)) continue;
+      const cost = e - s + SEP.length;
+      if (cost > budget) continue;
+      picked.push([s, e]);
+      budget -= cost;
+    }
+  }
+  picked.sort((a, b) => a[0] - b[0]);
+  return head + picked.map(([s, e]) => SEP + clean.slice(s, e)).join('');
+}
+
+const SEP = '\n[...]\n';

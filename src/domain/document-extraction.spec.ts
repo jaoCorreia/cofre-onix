@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeExtraction, parseJsonObject } from './document-extraction';
+import { excerptForExtraction, normalizeExtraction, parseJsonObject } from './document-extraction';
 
 describe('normalizeExtraction', () => {
   it('converte o JSON da IA para centavos, fração e data ISO', () => {
@@ -44,5 +44,26 @@ describe('parseJsonObject', () => {
 
   it.each(['', null, 'sem json', '{"amount": 10', '[1,2]', '{quebrado}'])('devolve null para %j', (txt) => {
     expect(parseJsonObject(txt as string)).toBeNull();
+  });
+});
+
+describe('excerptForExtraction', () => {
+  it('texto curto vai inteiro', () => {
+    expect(excerptForExtraction('Valor R$ 100', 500)).toBe('Valor R$ 100');
+  });
+
+  it('inclui trechos com palavras-chave que estão depois do começo', () => {
+    const filler = 'cláusula genérica sem interesse. '.repeat(1500); // ~48 mil caracteres
+    const text = 'RESUMO valor 4.636,83 ' + filler + ' Sistema de amortização: Tabela Price. ' + filler + ' 1º Vencimento: 07/11/2026 ' + filler;
+    const out = excerptForExtraction(text);
+    expect(out.length).toBeLessThanOrEqual(12_000);
+    expect(out).toContain('RESUMO valor 4.636,83');
+    expect(out).toContain('Tabela Price');
+    expect(out).toContain('Vencimento: 07/11/2026');
+  });
+
+  it('respeita o limite mesmo com muitas palavras-chave', () => {
+    const text = 'início '.repeat(2000) + 'parcela taxa juros vencimento '.repeat(5000);
+    expect(excerptForExtraction(text).length).toBeLessThanOrEqual(12_000);
   });
 });

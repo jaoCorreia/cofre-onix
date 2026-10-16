@@ -56,9 +56,15 @@ async function deepseek(messages: Msg[], extra: Record<string, unknown> = {}) {
     console.error('deepseek', res.status, await res.text());
     throw new HttpError(502, 'A IA não respondeu agora. Tente de novo em instantes.');
   }
-  const msg = (await res.json()).choices?.[0]?.message;
+  const body = await res.json();
+  const choice = body.choices?.[0];
+  const msg = choice?.message;
   if (!msg) throw new HttpError(502, 'Resposta vazia da IA.');
-  return msg;
+  if (!msg.content && !msg.tool_calls?.length) {
+    // Diagnóstico: resposta vazia costuma ser limite de tokens consumido pelo raciocínio do modelo.
+    console.error('deepseek vazio', JSON.stringify({ finish: choice.finish_reason, usage: body.usage, model: body.model, reasoning: !!msg.reasoning_content }));
+  }
+  return { ...msg, finish_reason: choice.finish_reason };
 }
 
 // ---------------------------------------------------------------- dados do lar
@@ -320,9 +326,10 @@ ${text}
 """` },
   ];
   // 1ª tentativa no modo JSON; se vier vazio/cortado, 2ª tentativa sem o modo JSON, pedindo só o objeto.
+  // Limite alto: modelos que "pensam" antes de responder gastam tokens no raciocínio.
   for (const extra of [
-    { response_format: { type: 'json_object' }, temperature: 0, max_tokens: 1500 },
-    { temperature: 0, max_tokens: 1500 },
+    { response_format: { type: 'json_object' }, temperature: 0, max_tokens: 8000 },
+    { temperature: 0, max_tokens: 8000 },
   ]) {
     const msg = await deepseek(messages, extra);
     const parsed = parseJsonObject(msg.content);
