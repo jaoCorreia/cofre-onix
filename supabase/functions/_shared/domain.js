@@ -2292,6 +2292,15 @@ function addMonths(isoDate2, months) {
   target.setUTCDate(Math.min(d, lastDay));
   return target.toISOString().slice(0, 10);
 }
+function formatBRLCompact(cents) {
+  const v = cents / 100;
+  const abs2 = Math.abs(v);
+  const sign2 = v < 0 ? "-" : "";
+  const one = (n) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  if (abs2 >= 1e6) return `${sign2}R$ ${one(abs2 / 1e6)} mi`;
+  if (abs2 >= 1e4) return `${sign2}R$ ${one(abs2 / 1e3)} mil`;
+  return formatBRL(cents);
+}
 
 // src/domain/ai-tools.ts
 var MAX_POINTS = 60;
@@ -2577,6 +2586,19 @@ async function sha256Hex(data) {
   const buf = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+function parseJsonObject(text2) {
+  if (!text2) return null;
+  const cleaned = text2.replace(/```(?:json)?/gi, "").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    const value = JSON.parse(cleaned.slice(start, end + 1));
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 // src/domain/markdown.ts
 var ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -2719,11 +2741,13 @@ export {
   annualToMonthly,
   evaluateFormula,
   formatBRL,
+  formatBRLCompact,
   formatPercent,
   isKnownIcon,
   netOfIncomeTax,
   normalizeExtraction,
   parseBRL,
+  parseJsonObject,
   parsePercent,
   pricePayment,
   priceSchedule,

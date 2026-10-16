@@ -76,3 +76,21 @@ export async function sha256Hex(data: ArrayBuffer): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', data);
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+/**
+ * Lê um objeto JSON vindo de um modelo de IA, tolerando blocos ```json, texto antes/depois
+ * e espaços. Devolve null se não houver um objeto válido.
+ */
+export function parseJsonObject(text: string | null | undefined): Record<string, unknown> | null {
+  if (!text) return null;
+  const cleaned = text.replace(/```(?:json)?/gi, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    const value = JSON.parse(cleaned.slice(start, end + 1));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}

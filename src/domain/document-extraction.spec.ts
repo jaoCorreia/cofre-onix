@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeExtraction } from './document-extraction';
+import { normalizeExtraction, parseJsonObject } from './document-extraction';
 
 describe('normalizeExtraction', () => {
   it('converte o JSON da IA para centavos, fração e data ISO', () => {
@@ -32,5 +32,17 @@ describe('normalizeExtraction', () => {
   it('entrada inválida não quebra', () => {
     expect(normalizeExtraction(null).kind).toBe('other');
     expect(normalizeExtraction('texto').uncertain.length).toBeGreaterThan(0);
+  });
+});
+
+describe('parseJsonObject', () => {
+  it.each([
+    ['{"amount": 10}', { amount: 10 }],
+    ['```json\n{"amount": 10}\n```', { amount: 10 }],
+    ['Aqui está:\n{"kind":"boleto","amount":1.5}\nEspero ter ajudado', { kind: 'boleto', amount: 1.5 }],
+  ])('lê %j', (txt, obj) => expect(parseJsonObject(txt)).toEqual(obj));
+
+  it.each(['', null, 'sem json', '{"amount": 10', '[1,2]', '{quebrado}'])('devolve null para %j', (txt) => {
+    expect(parseJsonObject(txt as string)).toBeNull();
   });
 });
