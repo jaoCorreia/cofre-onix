@@ -5,7 +5,14 @@ import { BiometricAuth, BiometryErrorType } from '@aparajita/capacitor-biometric
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 import { isNative, supabase } from '../supabase';
 import { environment } from '../../../environments/environment';
-import { afterBiometricAttempt, LockState, shouldLockOnResume, UnlockOutcome } from '../../../domain/lock-policy';
+import {
+  afterBiometricAttempt,
+  isPromptSideEffect,
+  LockState,
+  shouldLockOnColdStart,
+  shouldLockOnResume,
+  UnlockOutcome,
+} from '../../../domain/lock-policy';
 
 const BIOMETRIC_FLAG = 'cofre.biometric_enabled';
 
@@ -33,7 +40,7 @@ export class AuthService {
 
     if (isNative) {
       this.lock.biometricEnabled = (await SecureStorage.getItem(BIOMETRIC_FLAG)) === '1';
-      this.locked.set(data.session !== null && shouldLockOnResume(this.lock, Date.now()));
+      this.locked.set(data.session !== null && shouldLockOnColdStart(this.lock));
     }
     this.ready.set(true);
   }
@@ -137,20 +144,31 @@ export class AuthService {
     return !isNative || !this.lock.biometricEnabled || (await this.prompt(reason)) === 'ok';
   }
 
+  /** A própria janela da digital deixa o app inativo/ativo: esses eventos são ignorados. */
+  private promptSideEffect(): boolean {
+    return isPromptSideEffect(this.inFlight !== null, this.promptEndedAt, Date.now());
+  }
+
   onBackground(): void {
+    if (this.promptSideEffect()) return;
     this.lock.backgroundedAt = Date.now();
   }
 
   onForeground(): void {
-    if (this.signedIn() && shouldLockOnResume(this.lock, Date.now())) this.locked.set(true);
-    else this.lock.backgroundedAt = null;
+    if (this.promptSideEffect()) return;
+    if (this.signedIn() && !this.locked() && shouldLockOnResume(this.lock, Date.now())) this.locked.set(true);
+    this.lock.backgroundedAt = null;
   }
 
   private inFlight: Promise<PromptResult> | null = null;
+  private promptEndedAt: number | null = null;
 
   /** Um pedido de digital por vez: chamadas simultâneas reaproveitam o mesmo resultado. */
   private prompt(reason: string): Promise<PromptResult> {
-    this.inFlight ??= this.doPrompt(reason).finally(() => (this.inFlight = null));
+    this.inFlight ??= this.doPrompt(reason).finally(() => {
+      this.inFlight = null;
+      this.promptEndedAt = Date.now();
+    });
     return this.inFlight;
   }
 
