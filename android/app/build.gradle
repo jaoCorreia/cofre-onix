@@ -7,6 +7,7 @@ if (keystorePropsFile.exists()) keystoreProps.load(new FileInputStream(keystoreP
 
 android {
     namespace = "com.cofreonix.app"
+    buildFeatures { buildConfig = true }
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.cofreonix.app"

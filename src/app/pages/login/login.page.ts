@@ -41,7 +41,7 @@ const RESEND_SECONDS = 60;
               <div class="or"><span>ou use seu e-mail</span></div>
 
               <label class="field">E-mail
-                <input id="login-email" type="email" inputmode="email" autocomplete="email" [(ngModel)]="email" placeholder="nome@gmail.com" (keyup.enter)="sendCode()" />
+                <input class="field" id="login-email" type="email" inputmode="email" autocomplete="email" [(ngModel)]="email" placeholder="nome@gmail.com" (keyup.enter)="sendCode()" />
               </label>
               <button class="primary" (click)="sendCode()" [disabled]="busy()">
                 @if (busy() === 'send') { <ion-spinner name="crescent" /> } Receber código
@@ -53,7 +53,7 @@ const RESEND_SECONDS = 60;
             <div class="stack">
               <p>Enviamos um código para <b>{{ email }}</b>. Confira também o spam.</p>
               <label class="field">Código
-                <input id="login-code" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+                <input id="login-code" class="field code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
                        [(ngModel)]="code" placeholder="000000" (ngModelChange)="onCode()" />
               </label>
               <button class="primary" (click)="verify()" [disabled]="busy()">
