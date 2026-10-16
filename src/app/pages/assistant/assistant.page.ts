@@ -1,10 +1,12 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IonContent, IonFooter, IonHeader, IonIcon, IonSegment, IonSegmentButton, IonLabel, IonSpinner, IonTitle, IonToolbar, ViewWillEnter } from '@ionic/angular';
-import type { ChartSpec } from '../../../domain/ai-tools';
+import { evaluateFormula, FORMULA_VARIABLES, validateFormula, type ChartSpec } from '../../../domain/ai-tools';
 import { formatBRL } from '../../../domain/money';
+import { renderMarkdown } from '../../../domain/markdown';
 import { ChartComponent } from '../../components/chart.component';
 import { AiService, Attachment, ChatMessage, SavedItem } from '../../core/data/ai.service';
+import { FinanceService } from '../../core/data/finance.service';
 import { HouseholdService } from '../../core/data/household.service';
 
 const SUGGESTIONS = [
@@ -43,7 +45,10 @@ const SUGGESTIONS = [
           @for (m of messages(); track $index) {
             <div class="msg" [class.me]="m.role === 'user'">
               @if (m.role === 'assistant') { <span class="tag"><ion-icon name="sparkles-outline" aria-hidden="true" /> Assistente</span> }
-              @if (m.content) { <p>{{ m.content }}</p> }
+              @if (m.content) {
+                @if (m.role === 'assistant') { <div class="md" [innerHTML]="md(m.content)"></div> }
+                @else { <p>{{ m.content }}</p> }
+              }
               @for (a of m.attachments ?? []; track $index) {
                 <div class="att">
                   @switch (a.type) {
@@ -77,10 +82,41 @@ const SUGGESTIONS = [
         </div>
       } @else {
         <div class="page">
+          @if (household.canEdit()) {
+            @if (newFormula()) {
+              <section class="card">
+                <h2><ion-icon name="calculator-outline" class="gold" aria-hidden="true" /> Nova fórmula</h2>
+                <div class="form">
+                  <label class="full">Nome<input id="f-name" type="text" [(ngModel)]="formulaName" maxlength="80" placeholder="% da dívida que é juros" /></label>
+                  <label class="full">Expressão<input id="f-expr" type="text" [(ngModel)]="formulaExpr" (ngModelChange)="checkFormula()" maxlength="200" placeholder="juros_restantes / divida_total * 100" autocapitalize="off" spellcheck="false" /></label>
+                </div>
+                @if (formulaCheck(); as c) {
+                  <p [class.error]="!c.ok" [class.muted]="c.ok" style="margin:8px 0 0">{{ c.ok ? 'Resultado agora: ' + round(c.value) : c.error }}</p>
+                }
+                <details style="margin-top:8px">
+                  <summary class="muted">Variáveis e operações disponíveis</summary>
+                  <ul class="vars">
+                    @for (v of variables; track v[0]) { <li><button class="chip-sm" (click)="insertVar(v[0])">{{ v[0] }}</button> {{ v[1] }}</li> }
+                  </ul>
+                  <p class="muted" style="font-size:12px">Operações: + − * / ^ e parênteses. Funções: min(a; b), max(a; b), abs(x), round(x; casas).</p>
+                </details>
+                <div style="display:flex;gap:8px;margin-top:10px">
+                  <button class="btn primary" (click)="saveFormula()">Salvar</button>
+                  <button class="btn" (click)="newFormula.set(false)">Cancelar</button>
+                </div>
+              </section>
+            } @else {
+              <button class="btn block" (click)="newFormula.set(true)"><ion-icon name="calculator-outline" aria-hidden="true" /> Criar fórmula</button>
+            }
+          }
           @for (s of saved(); track s.id) {
             <section class="card">
               @if (s.kind === 'chart') { <app-chart [spec]="savedChart(s)" /> }
-              @else { <div class="muted">{{ s.title }}</div><code class="num">{{ savedExpr(s) }}</code> }
+              @else {
+                <div class="muted">{{ s.title }}</div>
+                <code class="num">{{ savedExpr(s) }}</code>
+                <div class="num big-sm">= {{ formulaValue(savedExpr(s)) }}</div>
+              }
               @if (household.canEdit()) { <button class="btn danger" style="margin-top:8px" (click)="remove(s)">Remover</button> }
             </section>
           } @empty {
@@ -119,11 +155,14 @@ const SUGGESTIONS = [
     .composer { display: flex; gap: 8px; padding: 10px 16px; background: var(--cofre-surface); border-top: 1px solid var(--cofre-line); }
     .composer input { flex: 1; min-width: 0; font: inherit; background: var(--cofre-surface-2); border: 1px solid var(--cofre-line); color: var(--cofre-text); border-radius: 12px; padding: 10px 12px; }
     .disclaimer { font-size: 11px; text-align: center; }
+    .vars { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--cofre-muted); }
+    .chip-sm { font-family: var(--cofre-num); font-size: 12px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--cofre-line); background: var(--cofre-surface-2); color: var(--cofre-gold); cursor: pointer; }
   `,
 })
 export class AssistantPage implements ViewWillEnter {
   private ai = inject(AiService);
   readonly household = inject(HouseholdService);
+  private finance = inject(FinanceService);
   private content = viewChild<ElementRef>('content');
   readonly suggestions = SUGGESTIONS;
   readonly brl = (reais: number) => formatBRL(Math.round(reais * 100));
@@ -136,8 +175,58 @@ export class AssistantPage implements ViewWillEnter {
   readonly notice = signal('');
   input = '';
 
+  readonly variables = Object.entries(FORMULA_VARIABLES);
+  readonly newFormula = signal(false);
+  readonly formulaCheck = signal<{ ok: true; value: number } | { ok: false; error: string } | null>(null);
+  formulaName = '';
+  formulaExpr = '';
+
   ionViewWillEnter(): void {
+    void this.finance.loadAll().catch(() => undefined);
     if (this.tab() === 'saved') void this.loadSaved();
+  }
+
+  checkFormula(): void {
+    const expr = this.formulaExpr.trim();
+    if (!expr) return this.formulaCheck.set(null);
+    const v = validateFormula(expr, Object.keys(FORMULA_VARIABLES));
+    if (!v.ok) return this.formulaCheck.set({ ok: false, error: v.error });
+    try {
+      this.formulaCheck.set({ ok: true, value: evaluateFormula(expr, this.finance.formulaScope()) });
+    } catch (e) {
+      this.formulaCheck.set({ ok: false, error: (e as Error).message });
+    }
+  }
+
+  insertVar(name: string): void {
+    this.formulaExpr = `${this.formulaExpr}${this.formulaExpr && !/\s$/.test(this.formulaExpr) ? ' ' : ''}${name}`;
+    this.checkFormula();
+  }
+
+  async saveFormula(): Promise<void> {
+    this.checkFormula();
+    const c = this.formulaCheck();
+    if (!this.formulaName.trim()) return this.error.set('Dê um nome à fórmula.');
+    if (!c || !c.ok) return this.error.set('Corrija a fórmula antes de salvar.');
+    this.error.set('');
+    try {
+      await this.ai.save('formula', this.formulaName.trim(), { expression: this.formulaExpr.trim() });
+      this.newFormula.set(false);
+      this.formulaName = this.formulaExpr = '';
+      this.formulaCheck.set(null);
+      await this.loadSaved();
+    } catch {
+      this.error.set('Não deu para salvar a fórmula.');
+    }
+  }
+
+  /** Valor atual de uma fórmula salva, recalculado com os dados de agora. */
+  formulaValue(expr: string): string {
+    try {
+      return String(this.round(evaluateFormula(expr, this.finance.formulaScope())));
+    } catch {
+      return '—';
+    }
   }
 
   setTab(ev: CustomEvent): void {
@@ -194,6 +283,8 @@ export class AssistantPage implements ViewWillEnter {
   savedChart = (s: SavedItem) => s.spec as ChartSpec;
   savedExpr = (s: SavedItem) => (s.spec as { expression: string }).expression;
   round = (v: number) => Math.round(v * 100) / 100;
+  /** HTML gerado com todo texto escapado (ver domain/markdown.ts); o Angular ainda sanitiza. */
+  md = (text: string) => renderMarkdown(text);
 
   private scroll(): void {
     setTimeout(() => this.content()?.nativeElement.scrollToBottom?.(250), 50);

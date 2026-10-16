@@ -189,3 +189,58 @@ describe('IA', () => {
     await as(db, estranho, async (tx) => expect(await count(tx, 'ai_saved')).toBe(0));
   });
 });
+
+describe('empréstimos', () => {
+  it('editor registra recebimento parcial, sem passar do total; leitor não', async () => {
+    const loan = await as(db, esposa, (tx) =>
+      one<{ id: string }>(tx, `insert into loans (household_id, counterparty, direction, amount_cents) values ($1, 'Marcos', 'lent', 180000) returning id`, [hh]),
+    );
+    await as(db, esposa, (tx) => tx.query('select register_loan_payment($1, 30000)', [loan.id]));
+    await as(db, esposa, (tx) => tx.query('select register_loan_payment($1, 999999)', [loan.id]));
+    const r = await as(db, joao, (tx) => one<{ paid_cents: string }>(tx, 'select paid_cents from loans where id = $1', [loan.id]));
+    expect(Number(r.paid_cents)).toBe(180000);
+    await expect(as(db, leitor, (tx) => tx.query('select register_loan_payment($1, 100)', [loan.id]))).rejects.toThrow(/sem permissão/);
+    await expect(as(db, esposa, (tx) => tx.query('select register_loan_payment($1, -5)', [loan.id]))).rejects.toThrow(/positivo/);
+  });
+});
+
+describe('storage de documentos', () => {
+  it('membro lê, editor envia, leitor e estranho não enviam, estranho não lê', async () => {
+    const path = `${hh}/nota.pdf`;
+    await as(db, esposa, (tx) => tx.query(`insert into storage.objects (bucket_id, name) values ('documents', $1)`, [path]));
+    await expect(as(db, leitor, (tx) => tx.query(`insert into storage.objects (bucket_id, name) values ('documents', $1)`, [`${hh}/x.pdf`]))).rejects.toThrow();
+    await expect(as(db, estranho, (tx) => tx.query(`insert into storage.objects (bucket_id, name) values ('documents', $1)`, [`${hh}/y.pdf`]))).rejects.toThrow();
+    await as(db, leitor, async (tx) => expect(await count(tx, `storage.objects where name = '${path}'`)).toBe(1));
+    await as(db, estranho, async (tx) => expect(await count(tx, 'storage.objects')).toBe(0));
+  });
+});
+
+describe('exclusão de conta', () => {
+  it('apaga lar solitário; em lar compartilhado passa a posse e apaga só itens privados', async () => {
+    const solo = user('solo');
+    const soloHh = await as(db, solo, async (tx) => (await one<{ id: string }>(tx, `select create_household('Só meu') id`)).id);
+
+    // joão é o único dono de "Casa"; tem uma dívida privada ("Segredo") e compartilhadas.
+    await db.query('select app.delete_account_data($1)', [joao.id]);
+    await db.query('select app.delete_account_data($1)', [solo.id]);
+
+    const lares = await db.query<{ id: string }>('select id from households where id = any($1)', [[hh, soloHh]]);
+    expect(lares.rows.map((r) => r.id)).toEqual([hh]);
+    const donos = await db.query<{ user_id: string }>(`select user_id from household_members where household_id = $1 and role = 'owner'`, [hh]);
+    expect(donos.rows.map((r) => r.user_id)).toEqual([esposa.id]);
+    const segredo = await db.query(`select 1 from debts where name = 'Segredo'`);
+    expect(segredo.rows).toHaveLength(0);
+    const compartilhada = await db.query(`select 1 from debts where name = 'Carro'`);
+    expect(compartilhada.rows.length).toBeGreaterThan(0);
+  });
+
+  it('usuário comum não consegue chamar a função', async () => {
+    await expect(as(db, esposa, (tx) => tx.query('select app.delete_account_data($1)', [esposa.id]))).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe('delete_account_data exposto', () => {
+  it('a versão pública também é negada a usuários comuns', async () => {
+    await expect(as(db, esposa, (tx) => tx.query('select delete_account_data($1)', [esposa.id]))).rejects.toThrow(/permission denied/);
+  });
+});

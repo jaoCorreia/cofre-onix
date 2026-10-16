@@ -49,6 +49,15 @@ export class AiService {
     return { role: 'assistant', content: data.reply ?? '', attachments: data.attachments ?? [] };
   }
 
+  /** A IA escolhe um ícone do catálogo (o servidor valida contra a lista). */
+  async suggestIcon(text: string): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('chat', {
+      body: { household_id: this.household.currentId(), action: 'suggest_icon', text: text.slice(0, 120) },
+    });
+    if (error || !data?.icon) throw new Error('sem sugestão');
+    return data.icon as string;
+  }
+
   async save(kind: 'chart' | 'formula', title: string, spec: unknown): Promise<void> {
     const { error } = await supabase.from('ai_saved').insert({ household_id: this.household.currentId(), kind, title, spec });
     if (error) throw error;

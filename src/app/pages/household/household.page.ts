@@ -62,6 +62,24 @@ const ROLE_LABEL: Record<Role, string> = { owner: 'Dono', editor: 'Editor', view
           }
           <button class="btn block" style="margin-top:8px" (click)="signOut()"><ion-icon name="log-out-outline" aria-hidden="true" /> Sair</button>
         </section>
+        <section class="card danger-zone">
+          <h2>Excluir minha conta</h2>
+          <p class="muted" style="margin:0 0 10px">
+            Apaga seu acesso e seus itens privados. Lares em que só você participa são apagados por completo;
+            nos compartilhados, os lançamentos do lar continuam para as outras pessoas e a posse passa para quem entrou primeiro.
+          </p>
+          @if (confirmingDelete()) {
+            <label class="field">Digite EXCLUIR para confirmar
+              <input class="field" id="del-confirm" [(ngModel)]="deleteText" autocomplete="off" autocapitalize="characters" />
+            </label>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn danger" (click)="deleteAccount()" [disabled]="busy() || deleteText.trim().toUpperCase() !== 'EXCLUIR'">Excluir definitivamente</button>
+              <button class="btn" (click)="confirmingDelete.set(false)">Cancelar</button>
+            </div>
+          } @else {
+            <button class="btn danger" (click)="confirmingDelete.set(true)"><ion-icon name="trash-outline" aria-hidden="true" /> Excluir conta</button>
+          }
+        </section>
         @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
       </div>
     </ion-content>
@@ -81,6 +99,8 @@ export class HouseholdPage implements ViewWillEnter {
   readonly sentTo = signal('');
   readonly copied = signal(false);
   email = '';
+  readonly confirmingDelete = signal(false);
+  deleteText = '';
   role: Exclude<Role, 'owner'> = 'editor';
 
   async ionViewWillEnter(): Promise<void> {
@@ -131,6 +151,22 @@ export class HouseholdPage implements ViewWillEnter {
     const on = (ev.detail as { checked: boolean }).checked;
     if (on && !(await this.auth.enableBiometric())) (ev.target as HTMLIonToggleElement).checked = false;
     if (!on) await this.auth.disableBiometric();
+  }
+
+  async deleteAccount(): Promise<void> {
+    if (!(await this.auth.confirmSensitive('Confirme para excluir sua conta'))) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      await this.auth.deleteAccount();
+      this.household.clear();
+      await this.router.navigateByUrl('/login', { replaceUrl: true });
+    } catch (e) {
+      console.error(e);
+      this.error.set('Não deu para excluir a conta. Tente de novo.');
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   async signOut(): Promise<void> {

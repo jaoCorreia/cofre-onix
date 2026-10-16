@@ -7,6 +7,7 @@ import { simulatePrepayment } from '../../../domain/prepayment';
 import { formatBRL, formatPercent, parseBRL, parsePercent } from '../../../domain/money';
 import { AuthService } from '../../core/auth/auth.service';
 import { DebtsService } from '../../core/data/debts.service';
+import { FinanceService } from '../../core/data/finance.service';
 import { HouseholdService } from '../../core/data/household.service';
 import { InstallmentRow } from '../../core/data/models';
 
@@ -95,6 +96,7 @@ export class DebtDetailPage implements ViewWillEnter {
   readonly id = input.required<string>();
   private debtsSvc = inject(DebtsService);
   private auth = inject(AuthService);
+  private finance = inject(FinanceService);
   private router = inject(Router);
   readonly household = inject(HouseholdService);
   readonly brl = formatBRL;
@@ -142,7 +144,13 @@ export class DebtDetailPage implements ViewWillEnter {
   });
 
   async ionViewWillEnter(): Promise<void> {
-    if (!this.debt()) await this.debtsSvc.load();
+    await this.finance.loadAll().catch(() => undefined);
+    // Pré-preenche com os dados reais do lar (reserva e melhor rendimento informado).
+    const months = this.finance.summary().reserveMonths;
+    if (months !== null) this.reserve = String(months).replace('.', ',');
+    const rate = this.finance.bestInvestmentRate();
+    if (rate !== null) this.invRate = (Math.round(rate * 10000) / 100).toString().replace('.', ',');
+    this.touch();
     this.installments.set(await this.debtsSvc.installments(this.id()));
   }
 

@@ -1,15 +1,17 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { IonBackButton, IonButtons, IonContent, IonHeader, IonIcon, IonTitle, IonToolbar } from '@ionic/angular';
+import { IonBackButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar } from '@ionic/angular';
 import { AmortizationSystem, schedule, totalInterest } from '../../../domain/amortization';
 import { formatBRL, parseBRL, parsePercent } from '../../../domain/money';
 import { DebtsService } from '../../core/data/debts.service';
 import { DEBT_ICONS } from '../../core/icons';
+import { IconPickerComponent } from '../../components/icon-picker.component';
+import { suggestIcon } from '../../../domain/icon-catalog';
 
 @Component({
   selector: 'app-debt-new',
-  imports: [IonContent, IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton, IonIcon, FormsModule],
+  imports: [IonContent, IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton, FormsModule, IconPickerComponent],
   template: `
     <ion-header><ion-toolbar>
       <ion-buttons slot="start"><ion-back-button defaultHref="/dividas" text="" /></ion-buttons>
@@ -17,20 +19,8 @@ import { DEBT_ICONS } from '../../core/icons';
     </ion-toolbar></ion-header>
     <ion-content>
       <div class="page">
-        <section class="card">
-          <div class="muted" style="margin-bottom:8px">Ícone</div>
-          <div class="tiles" style="grid-template-columns:repeat(4,1fr)" role="radiogroup" aria-label="Ícone da dívida">
-            @for (i of icons; track i) {
-              <button class="tile" role="radio" [attr.aria-checked]="icon === i" (click)="icon = i"
-                      [style.border-color]="icon === i ? 'var(--cofre-gold)' : null">
-                <ion-icon [name]="i" aria-hidden="true" [style.color]="icon === i ? 'var(--cofre-gold)' : null" />
-              </button>
-            }
-          </div>
-        </section>
-
         <section class="card form">
-          <label class="full">Nome<input id="d-name" type="text" [(ngModel)]="name" placeholder="Financiamento do carro" maxlength="120" /></label>
+          <label class="full">Nome<input id="d-name" type="text" [(ngModel)]="name" (blur)="autoIcon()" placeholder="Financiamento do carro" maxlength="120" /></label>
           <label class="full">Credor<input id="d-cred" type="text" [(ngModel)]="creditor" placeholder="Banco" /></label>
           <label>Valor financiado (R$)<input id="d-val" inputmode="decimal" [(ngModel)]="principal" (ngModelChange)="touch()" placeholder="38.000,00" /></label>
           <label>Juros (% a.m.)<input id="d-rate" inputmode="decimal" [(ngModel)]="rate" (ngModelChange)="touch()" placeholder="2,1" /></label>
@@ -47,6 +37,8 @@ import { DEBT_ICONS } from '../../core/icons';
             <input id="d-priv" type="checkbox" [(ngModel)]="isPrivate" style="width:auto" /> Privada (só eu vejo)
           </label>
         </section>
+
+        <section class="card"><app-icon-picker [(value)]="icon" [hint]="name + ' ' + creditor" [preferred]="icons" /></section>
 
         @if (preview(); as p) {
           <section class="card">
@@ -82,6 +74,12 @@ export class DebtNewPage {
   readonly busy = signal(false);
   readonly error = signal('');
   private version = signal(0);
+
+  /** Ao sair do campo nome, sugere um ícone se o usuário ainda não escolheu outro. */
+  autoIcon(): void {
+    const s = suggestIcon(`${this.name} ${this.creditor}`);
+    if (s && this.icon === DEBT_ICONS[0]) this.icon = s;
+  }
 
   touch(): void {
     this.version.update((v) => v + 1);

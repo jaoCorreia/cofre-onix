@@ -205,4 +205,12 @@ export const FORMULA_VARIABLES = {
   juros_restantes: 'Juros que ainda serão pagos em todas as dívidas (R$)',
   maior_taxa: 'Maior taxa de juros ao mês entre as dívidas (%)',
   qtd_dividas: 'Número de dívidas em aberto',
+  investido_total: 'Soma dos investimentos (R$)',
+  reserva: 'Saldo da reserva de emergência (R$)',
+  reserva_meses: 'Meses de gastos cobertos pela reserva',
+  gastos_mensais: 'Gastos mensais do lar (R$)',
+  te_devem: 'Quanto te devem em empréstimos (R$)',
+  patrimonio: 'Patrimônio líquido (R$)',
 } as const;
+
+export type FormulaScope = Record<keyof typeof FORMULA_VARIABLES, number>;

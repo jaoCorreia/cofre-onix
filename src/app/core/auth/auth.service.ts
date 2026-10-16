@@ -43,7 +43,7 @@ export class AuthService {
     if (!isNative) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${location.origin}/` },
+        options: { redirectTo: `${location.origin}${location.pathname}` }, // volta para a mesma página (local ou GitHub Pages)
       });
       if (error) throw error;
       return; // a página navega para o Google
@@ -76,6 +76,13 @@ export class AuthService {
   async verifyEmailCode(email: string, code: string): Promise<void> {
     const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     if (error) throw error;
+  }
+
+  /** Apaga a conta (Edge Function delete-account) e encerra a sessão neste aparelho. */
+  async deleteAccount(): Promise<void> {
+    const { error } = await supabase.functions.invoke('delete-account', { body: {} });
+    if (error) throw error;
+    await this.signOut();
   }
 
   async signOut(): Promise<void> {

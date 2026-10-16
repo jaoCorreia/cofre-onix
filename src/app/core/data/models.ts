@@ -6,6 +6,7 @@ export interface Household {
   id: string;
   name: string;
   role: Role;
+  monthlyExpensesCents: Cents | null;
 }
 
 export interface Member {
@@ -54,4 +55,47 @@ export interface NewDebt {
   /** Parcelas já pagas antes do cadastro. */
   alreadyPaid: number;
   private: boolean;
+}
+
+export interface Loan {
+  id: string;
+  household_id: string;
+  owner_id: string;
+  private: boolean;
+  counterparty: string;
+  direction: 'lent' | 'borrowed';
+  amount_cents: Cents;
+  paid_cents: Cents;
+  monthly_rate: number;
+  due_date: string | null;
+  icon: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface Investment {
+  id: string;
+  household_id: string;
+  owner_id: string;
+  private: boolean;
+  name: string;
+  kind: string;
+  indexer: string | null;
+  balance_cents: Cents;
+  monthly_rate: number | null;
+  is_emergency_reserve: boolean;
+  icon: string | null;
+}
+
+export interface DocumentRow {
+  id: string;
+  household_id: string;
+  storage_path: string;
+  kind: 'invoice' | 'contract' | 'boleto' | 'other';
+  sha256: string;
+  debt_id: string | null;
+  file_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
 }

@@ -35,3 +35,14 @@ export function addMonths(isoDate: string, months: number): string {
   target.setUTCDate(Math.min(d, lastDay));
   return target.toISOString().slice(0, 10);
 }
+
+/** Formato curto para espaços pequenos: R$ 950,00 · R$ 36,1 mil · R$ 1,2 mi. */
+export function formatBRLCompact(cents: Cents): string {
+  const v = cents / 100;
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  const one = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (abs >= 1_000_000) return `${sign}R$ ${one(abs / 1_000_000)} mi`;
+  if (abs >= 10_000) return `${sign}R$ ${one(abs / 1_000)} mil`;
+  return formatBRL(cents);
+}

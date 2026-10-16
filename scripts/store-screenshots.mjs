@@ -59,6 +59,16 @@ for (const s of specs) {
   }
 }
 
+const loans = [
+  { id: 'l1', household_id: HH, owner_id: ME, private: false, counterparty: 'Marcos', direction: 'lent', amount_cents: 180000, paid_cents: 60000, monthly_rate: 0, due_date: thisMonth(25), icon: 'person-outline', notes: '6x de R$ 300 no Pix', created_at: '2026-09-01T00:00:00Z' },
+  { id: 'l2', household_id: HH, owner_id: ME, private: false, counterparty: 'Ana (irmã)', direction: 'lent', amount_cents: 60000, paid_cents: 0, monthly_rate: 0, due_date: addMonths(thisMonth(10), 1), icon: 'person-outline', notes: null, created_at: '2026-09-01T00:00:00Z' },
+  { id: 'l3', household_id: HH, owner_id: ME, private: false, counterparty: 'Tio Carlos', direction: 'borrowed', amount_cents: 50000, paid_cents: 20000, monthly_rate: 0, due_date: addMonths(thisMonth(5), 1), icon: 'person-outline', notes: null, created_at: '2026-09-01T00:00:00Z' },
+];
+const investments = [
+  { id: 'i1', household_id: HH, owner_id: ME, private: false, name: 'CDB liquidez diária', kind: 'Reserva', indexer: '100% CDI', balance_cents: 1200000, monthly_rate: 0.0078, is_emergency_reserve: true, icon: 'shield-checkmark-outline' },
+  { id: 'i2', household_id: HH, owner_id: ME, private: false, name: 'Tesouro IPCA+ 2035', kind: 'Tesouro Direto', indexer: 'IPCA + 6,4%', balance_cents: 620000, monthly_rate: 0.0082, is_emergency_reserve: false, icon: 'leaf-outline' },
+];
+
 const members = [
   { user_id: ME, role: 'owner', joined_at: '2026-10-01T00:00:00Z', email: 'voce@exemplo.com' },
   { user_id: '33333333-3333-4333-8333-333333333333', role: 'editor', joined_at: '2026-10-02T00:00:00Z', email: 'ana@exemplo.com' },
@@ -68,7 +78,9 @@ function rest(url) {
   const u = new URL(url);
   const table = u.pathname.split('/').pop();
   const q = u.searchParams;
-  if (table === 'household_members' && q.get('select')?.includes('households')) return [{ role: 'owner', households: { id: HH, name: 'Casa' } }];
+  if (table === 'household_members' && q.get('select')?.includes('households')) return [{ role: 'owner', households: { id: HH, name: 'Casa', monthly_expenses_cents: 300000 } }];
+  if (table === 'loans') return loans;
+  if (table === 'investments') return investments;
   if (table === 'household_members') return members;
   if (table === 'debts') return [...debts].sort((a, b) => b.monthly_rate - a.monthly_rate);
   if (table === 'installments') {
@@ -108,6 +120,9 @@ await ctx.route(`${SUPABASE_URL}/**`, async (route) => {
   const url = route.request().url();
   if (url.includes('/auth/v1/user')) return route.fulfill({ json: session.user });
   if (url.includes('/rest/v1/')) return route.fulfill({ json: rest(url) });
+  if (url.includes('/functions/v1/chat')) {
+    return route.fulfill({ json: { reply: `**Sim, vale amortizar.** Sua reserva cobre **4 meses**, acima do mínimo de 3.\n\n| Dívida | Taxa |\n|---|---|\n| Rotativo do cartão | 12,9% a.m. |\n| Carro | 2,1% a.m. |\n\n1. Quite primeiro o **rotativo do cartão**.\n2. Depois amortize o carro *reduzindo o prazo*.\n\nSimulação educativa, não é recomendação de investimento.`, attachments: [] } });
+  }
   return route.fulfill({ json: {} });
 });
 
@@ -118,9 +133,13 @@ const shots = [
   ['03-amortizar', '/dividas/d-carro'],
   ['04-nova-divida', '/dividas/nova'],
   ['05-lar', '/lar'],
+  ['06-emprestimos', '/emprestimos'],
+  ['07-investimentos', '/investir'],
+  ['08-documentos', '/docs'],
+  ['09-assistente', '/ia'],
 ];
 for (const [name, path] of shots) {
-  await page.goto(`http://localhost:${PORT}${path}`);
+  await page.goto(`http://localhost:${PORT}/#${path}`);
   await page.waitForTimeout(1800);
   if (name === '04-nova-divida') {
     await page.fill('#d-name', 'Financiamento do carro');
@@ -129,6 +148,10 @@ for (const [name, path] of shots) {
     await page.fill('#d-rate', '2,1');
     await page.fill('#d-n', '48');
     await page.waitForTimeout(400);
+  }
+  if (name === '09-assistente') {
+    await page.click('text=Vale amortizar alguma dívida agora?');
+    await page.waitForTimeout(1200);
   }
   await page.screenshot({ path: `${OUT}/${name}.png` });
   console.log('ok', name);

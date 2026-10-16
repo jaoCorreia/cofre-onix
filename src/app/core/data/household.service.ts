@@ -3,6 +3,7 @@ import { supabase } from '../supabase';
 import { Household, Member, Role } from './models';
 
 const CURRENT_KEY = 'cofre.household';
+export const PUBLIC_APP_URL = 'https://jaocorreia.github.io/cofre-onix/app/';
 
 @Injectable({ providedIn: 'root' })
 export class HouseholdService {
@@ -17,13 +18,14 @@ export class HouseholdService {
     const uid = auth.user?.id;
     const { data, error } = await supabase
       .from('household_members')
-      .select('role, households(id, name)')
+      .select('role, households(id, name, monthly_expenses_cents)')
       .eq('user_id', uid ?? '');
     if (error) throw error;
 
-    const list = (data ?? []).flatMap((r: { role: Role; households: { id: string; name: string } | { id: string; name: string }[] | null }) => {
+    type Row = { id: string; name: string; monthly_expenses_cents: number | null };
+    const list = (data ?? []).flatMap((r: { role: Role; households: Row | Row[] | null }) => {
       const h = Array.isArray(r.households) ? r.households[0] : r.households;
-      return h ? [{ id: h.id, name: h.name, role: r.role }] : [];
+      return h ? [{ id: h.id, name: h.name, role: r.role, monthlyExpensesCents: h.monthly_expenses_cents }] : [];
     });
     this.households.set(list);
 
@@ -59,7 +61,8 @@ export class HouseholdService {
   async invite(email: string, role: Exclude<Role, 'owner'>): Promise<string> {
     const { data, error } = await supabase.rpc('create_invite', { hh: this.currentId(), invite_email: email, invite_role: role });
     if (error) throw error;
-    return `${location.origin}/convite/${data}`;
+    // Link público (versão web): abre no navegador de qualquer pessoa, inclusive a partir do celular.
+    return `${PUBLIC_APP_URL}#/convite/${data}`;
   }
 
   async acceptInvite(token: string): Promise<void> {
@@ -72,6 +75,13 @@ export class HouseholdService {
   async removeMember(userId: string): Promise<void> {
     const { error } = await supabase.from('household_members').delete().eq('household_id', this.currentId() ?? '').eq('user_id', userId);
     if (error) throw error;
+  }
+
+  /** Gastos mensais do lar (base da reserva de emergência). Só o dono altera. */
+  async setMonthlyExpenses(cents: number | null): Promise<void> {
+    const { error } = await supabase.from('households').update({ monthly_expenses_cents: cents }).eq('id', this.currentId() ?? '');
+    if (error) throw error;
+    this.households.update((list) => list.map((h) => (h.id === this.currentId() ? { ...h, monthlyExpensesCents: cents } : h)));
   }
 
   clear(): void {

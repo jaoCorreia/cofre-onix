@@ -13,11 +13,13 @@
     "test:domain": "vitest run --config vitest.domain.config.ts",
     "test:db": "vitest run --config vitest.db.config.ts",
     "env": "node scripts/gen-env.mjs",
-    "prestart": "npm run env",
-    "prebuild": "npm run env",
-    "pretest": "npm run env",
+    "prestart": "npm run prepare:app",
+    "prebuild": "npm run prepare:app",
+    "pretest": "npm run prepare:app",
     "screenshots": "npm run build && node scripts/store-screenshots.mjs",
-    "build:shared": "node scripts/build-shared.mjs"
+    "build:shared": "node scripts/build-shared.mjs",
+    "prepare:app": "node scripts/gen-env.mjs && node scripts/copy-assets.mjs",
+    "publish:web": "npm run prepare:app && node scripts/publish-web.mjs"
   },
   "private": true,
   "dependencies": {
@@ -40,7 +42,9 @@
     "@supabase/supabase-js": "^2.117.3",
     "decimal.js": "^10.4.3",
     "ionicons": "^8.1.0",
+    "pdfjs-dist": "^4.10.38",
     "rxjs": "~7.8.0",
+    "tesseract.js": "^5.1.1",
     "tslib": "^2.3.0"
   },
   "devDependencies": {

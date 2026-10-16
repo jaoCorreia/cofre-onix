@@ -8,7 +8,9 @@ import { Debt, InstallmentRow, NewDebt } from './models';
 @Injectable({ providedIn: 'root' })
 export class DebtsService {
   private household = inject(HouseholdService);
-  readonly debts = signal<(Debt & { remaining: number })[]>([]);
+  readonly debts = signal<(Debt & { remaining: number; interestLeftCents: number })[]>([]);
+  /** Soma das parcelas em aberto que vencem no mês corrente. */
+  readonly dueThisMonthCents = signal(0);
   readonly upcoming = signal<(InstallmentRow & { debt_name: string })[]>([]);
 
   async load(): Promise<void> {
@@ -20,15 +22,30 @@ export class DebtsService {
     const ids = list.map((d) => d.id);
     if (ids.length === 0) {
       this.debts.set([]);
+      this.dueThisMonthCents.set(0);
       return this.upcoming.set([]);
     }
 
     // Parcelas em aberto por dívida (o simulador precisa do prazo restante).
-    const { data: open, error: e1 } = await supabase.from('installments').select('debt_id').in('debt_id', ids).is('paid_at', null);
+    const { data: open, error: e1 } = await supabase
+      .from('installments')
+      .select('debt_id,interest_cents,payment_cents,due_date')
+      .in('debt_id', ids)
+      .is('paid_at', null);
     if (e1) throw e1;
     const remaining = new Map<string, number>();
-    for (const r of open as { debt_id: string }[]) remaining.set(r.debt_id, (remaining.get(r.debt_id) ?? 0) + 1);
-    this.debts.set(list.map((d) => ({ ...d, monthly_rate: Number(d.monthly_rate), remaining: remaining.get(d.id) ?? 0 })));
+    const interest = new Map<string, number>();
+    const month = new Date().toISOString().slice(0, 7);
+    let dueThisMonth = 0;
+    for (const r of open as { debt_id: string; interest_cents: number; payment_cents: number; due_date: string | null }[]) {
+      remaining.set(r.debt_id, (remaining.get(r.debt_id) ?? 0) + 1);
+      interest.set(r.debt_id, (interest.get(r.debt_id) ?? 0) + r.interest_cents);
+      if (r.due_date?.startsWith(month)) dueThisMonth += r.payment_cents;
+    }
+    this.dueThisMonthCents.set(dueThisMonth);
+    this.debts.set(
+      list.map((d) => ({ ...d, monthly_rate: Number(d.monthly_rate), remaining: remaining.get(d.id) ?? 0, interestLeftCents: interest.get(d.id) ?? 0 })),
+    );
     const { data: inst, error: e2 } = await supabase
       .from('installments')
       .select('*')

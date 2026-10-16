@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, formatBRL, parseBRL, parsePercent } from './money';
+import { addMonths, formatBRL, formatBRLCompact, parseBRL, parsePercent } from './money';
 
 describe('formatBRL', () => {
   it('formata centavos', () => {
@@ -38,4 +38,13 @@ describe('addMonths', () => {
     expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
     expect(addMonths('2026-10-20', 3)).toBe('2027-01-20');
   });
+});
+
+describe('formatBRLCompact', () => {
+  it.each([
+    [95000, 'R$ 950,00'],
+    [3608909, 'R$ 36,1 mil'],
+    [-1638909, '-R$ 16,4 mil'],
+    [123456789, 'R$ 1,2 mi'],
+  ])('%i -> %s', (c, txt) => expect(formatBRLCompact(c)).toBe(txt));
 });

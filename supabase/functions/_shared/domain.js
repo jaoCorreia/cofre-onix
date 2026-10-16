@@ -2285,8 +2285,8 @@ function parsePercent(input) {
 function formatPercent(rate, digits = 2) {
   return `${(rate * 100).toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`;
 }
-function addMonths(isoDate, months) {
-  const [y, m, d] = isoDate.split("-").map(Number);
+function addMonths(isoDate2, months) {
+  const [y, m, d] = isoDate2.split("-").map(Number);
   const target = new Date(Date.UTC(y, m - 1 + months, 1));
   const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
   target.setUTCDate(Math.min(d, lastDay));
@@ -2494,23 +2494,246 @@ var FORMULA_VARIABLES = {
   parcelas_mes: "Soma das parcelas que vencem no m\xEAs (R$)",
   juros_restantes: "Juros que ainda ser\xE3o pagos em todas as d\xEDvidas (R$)",
   maior_taxa: "Maior taxa de juros ao m\xEAs entre as d\xEDvidas (%)",
-  qtd_dividas: "N\xFAmero de d\xEDvidas em aberto"
+  qtd_dividas: "N\xFAmero de d\xEDvidas em aberto",
+  investido_total: "Soma dos investimentos (R$)",
+  reserva: "Saldo da reserva de emerg\xEAncia (R$)",
+  reserva_meses: "Meses de gastos cobertos pela reserva",
+  gastos_mensais: "Gastos mensais do lar (R$)",
+  te_devem: "Quanto te devem em empr\xE9stimos (R$)",
+  patrimonio: "Patrim\xF4nio l\xEDquido (R$)"
 };
+
+// src/domain/finance.ts
+function summarize(f) {
+  const debtCents = f.debts.reduce((s, d) => s + d.balance_cents, 0);
+  const open = (l) => Math.max(0, l.amount_cents - l.paid_cents);
+  const receivableCents = f.loans.filter((l) => l.direction === "lent").reduce((s, l) => s + open(l), 0);
+  const payableLoansCents = f.loans.filter((l) => l.direction === "borrowed").reduce((s, l) => s + open(l), 0);
+  const investedCents = f.investments.reduce((s, i) => s + i.balance_cents, 0);
+  const reserveCents = f.investments.filter((i) => i.is_emergency_reserve).reduce((s, i) => s + i.balance_cents, 0);
+  const reserveMonths = f.monthlyExpensesCents && f.monthlyExpensesCents > 0 ? Math.round(reserveCents / f.monthlyExpensesCents * 10) / 10 : null;
+  return {
+    debtCents,
+    receivableCents,
+    payableLoansCents,
+    investedCents,
+    reserveCents,
+    netWorthCents: investedCents + receivableCents - debtCents - payableLoansCents,
+    reserveMonths
+  };
+}
+function annualToMonthly(annualRate) {
+  return Math.pow(1 + annualRate, 1 / 12) - 1;
+}
+function netOfIncomeTax(monthlyRate, days) {
+  const ir = days <= 180 ? 0.225 : days <= 360 ? 0.2 : days <= 720 ? 0.175 : 0.15;
+  return monthlyRate * (1 - ir);
+}
+
+// src/domain/document-extraction.ts
+var FIELDS = ["creditor", "description", "amountCents", "installments", "monthlyRate", "system", "firstDue"];
+var MAX_AMOUNT = 1e10;
+function isoDate(v) {
+  if (typeof v !== "string") return null;
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) {
+    const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+    if (br) m = [v, br[3], br[2], br[1]];
+  }
+  if (!m) return null;
+  const d = /* @__PURE__ */ new Date(`${m[1]}-${m[2]}-${m[3]}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.getUTCDate() !== Number(m[3]) ? null : `${m[1]}-${m[2]}-${m[3]}`;
+}
+var text = (v, max2) => typeof v === "string" && v.trim() ? v.trim().slice(0, max2) : null;
+function normalizeExtraction(raw) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  const uncertain = new Set(Array.isArray(r["uncertain"]) ? r["uncertain"].filter((x) => typeof x === "string") : []);
+  const reais = typeof r["amount"] === "number" ? r["amount"] : Number(String(r["amount"] ?? "").replace(/\./g, "").replace(",", "."));
+  let amountCents = Number.isFinite(reais) && reais > 0 ? Math.round(reais * 100) : null;
+  if (amountCents !== null && amountCents > MAX_AMOUNT) amountCents = null;
+  let installments = Number(r["installments"]);
+  if (!Number.isInteger(installments) || installments < 1 || installments > 600) installments = null;
+  const rawPct = r["monthly_rate_percent"];
+  const pct = typeof rawPct === "number" ? rawPct : typeof rawPct === "string" && rawPct.trim() ? Number(rawPct.replace(",", ".")) : NaN;
+  const monthlyRate = Number.isFinite(pct) && pct >= 0 && pct <= 30 ? pct / 100 : null;
+  const system = r["system"] === "price" || r["system"] === "sac" ? r["system"] : null;
+  const kind = ["invoice", "contract", "boleto", "other"].includes(r["kind"]) ? r["kind"] : "other";
+  const doc = {
+    kind,
+    creditor: text(r["creditor"], 120),
+    description: text(r["description"], 120),
+    amountCents,
+    installments,
+    monthlyRate,
+    system,
+    firstDue: isoDate(r["first_due"]),
+    uncertain: []
+  };
+  for (const f of FIELDS) if (doc[f] === null) uncertain.add(f);
+  doc.uncertain = FIELDS.filter((f) => uncertain.has(f));
+  return doc;
+}
+async function sha256Hex(data) {
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// src/domain/markdown.ts
+var ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+var escape = (s) => s.replace(/[&<>"']/g, (c) => ESC[c]);
+function inline(raw) {
+  return raw.split(/(`[^`]+`)/g).map((part) => {
+    if (/^`[^`]+`$/.test(part)) return `<code>${escape(part.slice(1, -1))}</code>`;
+    let s = escape(part);
+    s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, "$1");
+    s = s.replace(/\*\*(.+?)\*\*|__(.+?)__/g, (_m, a, b) => `<strong>${a ?? b}</strong>`);
+    s = s.replace(/(^|[^*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\*)/g, "$1<em>$2</em>");
+    s = s.replace(/(^|[^_\w])_(?!\s)(.+?)(?<!\s)_(?!\w)/g, "$1<em>$2</em>");
+    s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
+    return s;
+  }).join("");
+}
+var isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+var isTableSep = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+var cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+function renderMarkdown(md) {
+  const lines = md.replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      const code = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
+      i++;
+      out.push(`<pre><code>${escape(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      const level = Math.min(h[1].length + 2, 6);
+      out.push(`<h${level}>${inline(h[2])}</h${level}>`);
+      i++;
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      out.push("<hr>");
+      i++;
+      continue;
+    }
+    if (isTableRow(line) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const head = cells(line);
+      i += 2;
+      const body = [];
+      while (i < lines.length && isTableRow(lines[i])) body.push(cells(lines[i++]));
+      out.push(
+        '<div class="md-table"><table><thead><tr>' + head.map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>" + body.map((r) => "<tr>" + r.map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>"
+      );
+      continue;
+    }
+    if (/^\s*>/.test(line)) {
+      const quote = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/, ""));
+      out.push(`<blockquote>${quote.map(inline).join("<br>")}</blockquote>`);
+      continue;
+    }
+    const ul = /^\s*[-*•]\s+/;
+    const ol = /^\s*\d+[.)]\s+/;
+    if (ul.test(line) || ol.test(line)) {
+      const ordered = ol.test(line);
+      const re = ordered ? ol : ul;
+      const items = [];
+      while (i < lines.length && re.test(lines[i])) items.push(`<li>${inline(lines[i++].replace(re, ""))}</li>`);
+      out.push(ordered ? `<ol>${items.join("")}</ol>` : `<ul>${items.join("")}</ul>`);
+      continue;
+    }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^\s*```/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) && !ul.test(lines[i]) && !ol.test(lines[i]) && !/^\s*>/.test(lines[i]) && !isTableRow(lines[i])) {
+      para.push(inline(lines[i++]));
+    }
+    if (para.length) out.push(`<p>${para.join("<br>")}</p>`);
+    else i++;
+  }
+  return out.join("");
+}
+
+// src/domain/icon-catalog.ts
+var ICON_CATALOG = {
+  "car-outline": ["carro", "veiculo", "ve\xEDculo", "auto", "moto", "financiamento de veiculo", "ipva", "combustivel", "gasolina", "uber"],
+  "card-outline": ["cartao", "cart\xE3o", "fatura", "rotativo", "nubank", "credito", "cr\xE9dito", "visa", "master"],
+  "home-outline": ["casa", "imovel", "im\xF3vel", "apartamento", "aluguel", "condominio", "condom\xEDnio", "iptu", "reforma"],
+  "school-outline": ["faculdade", "escola", "curso", "fies", "estudo", "mensalidade", "educacao", "educa\xE7\xE3o"],
+  "medkit-outline": ["saude", "sa\xFAde", "hospital", "medico", "m\xE9dico", "plano de saude", "dentista", "remedio", "rem\xE9dio", "farmacia"],
+  "phone-portrait-outline": ["celular", "telefone", "iphone", "smartphone", "plano movel"],
+  "laptop-outline": ["notebook", "computador", "pc", "laptop", "macbook"],
+  "tv-outline": ["tv", "televisao", "televis\xE3o", "eletronico", "eletr\xF4nico", "streaming", "netflix"],
+  "cart-outline": ["mercado", "supermercado", "compras", "loja", "magazine", "carne"],
+  "cash-outline": ["emprestimo", "empr\xE9stimo", "consignado", "pessoal", "dinheiro", "pix", "cheque especial"],
+  "business-outline": ["banco", "bradesco", "itau", "ita\xFA", "caixa", "santander", "inter", "empresa", "cnpj"],
+  "airplane-outline": ["viagem", "passagem", "aviao", "avi\xE3o", "hotel", "ferias", "f\xE9rias"],
+  "flash-outline": ["luz", "energia", "eletricidade", "enel", "cemig", "copel"],
+  "water-outline": ["agua", "\xE1gua", "sabesp", "saneamento"],
+  "wifi-outline": ["internet", "wifi", "fibra", "vivo", "claro", "tim", "oi"],
+  "shirt-outline": ["roupa", "vestuario", "vestu\xE1rio", "sapato", "tenis", "t\xEAnis"],
+  "paw-outline": ["pet", "cachorro", "gato", "veterinario", "veterin\xE1rio", "racao", "ra\xE7\xE3o"],
+  "fitness-outline": ["academia", "esporte", "gym", "bike", "bicicleta"],
+  "restaurant-outline": ["restaurante", "comida", "ifood", "lanche", "delivery"],
+  "gift-outline": ["presente", "aniversario", "anivers\xE1rio", "natal", "casamento"],
+  "construct-outline": ["ferramenta", "obra", "material de construcao", "pedreiro", "manutencao", "manuten\xE7\xE3o"],
+  "person-outline": ["amigo", "amiga", "irmao", "irm\xE3o", "mae", "m\xE3e", "pai", "primo", "tio", "vizinho", "colega"],
+  "people-outline": ["familia", "fam\xEDlia", "parentes", "grupo"],
+  "trending-up-outline": ["acoes", "a\xE7\xF5es", "bolsa", "fii", "fundo", "etf", "cripto", "bitcoin"],
+  "shield-checkmark-outline": ["reserva", "emergencia", "emerg\xEAncia", "seguro", "seguranca", "seguran\xE7a"],
+  "leaf-outline": ["tesouro", "selic", "ipca", "cdb", "lci", "lca", "poupanca", "poupan\xE7a", "renda fixa"],
+  "receipt-outline": ["boleto", "conta", "imposto", "taxa", "multa"]
+};
+var ICON_NAMES = Object.keys(ICON_CATALOG);
+var GENERIC = /* @__PURE__ */ new Set(["receipt-outline"]);
+var normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function suggestIcon(text2) {
+  const t = ` ${normalize(text2)} `;
+  let best = null;
+  for (const [icon, words] of Object.entries(ICON_CATALOG)) {
+    for (const w of words) {
+      const k = normalize(w);
+      const re = new RegExp(`[^a-z0-9]${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${k.length >= 4 ? "" : "[^a-z0-9]"}`);
+      const score = GENERIC.has(icon) ? k.length - 100 : k.length;
+      if (re.test(t) && (!best || score > best.len)) best = { icon, len: score };
+    }
+  }
+  return best?.icon ?? null;
+}
+var isKnownIcon = (name) => typeof name === "string" && name in ICON_CATALOG;
 export {
   FORMULA_VARIABLES,
+  ICON_CATALOG,
+  ICON_NAMES,
   MIN_RESERVE_MONTHS,
   addMonths,
   adviseExtraMoney,
+  annualToMonthly,
   evaluateFormula,
   formatBRL,
   formatPercent,
+  isKnownIcon,
+  netOfIncomeTax,
+  normalizeExtraction,
   parseBRL,
   parsePercent,
   pricePayment,
   priceSchedule,
+  renderMarkdown,
   sacSchedule,
   schedule,
+  sha256Hex,
   simulatePrepayment,
+  suggestIcon,
+  summarize,
   totalInterest,
   validateChart,
   validateFormula
