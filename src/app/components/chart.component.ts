@@ -1,6 +1,5 @@
 import { Component, computed, input } from '@angular/core';
 import type { ChartSpec } from '../../domain/ai-tools';
-import { formatBRL } from '../../domain/money';
 
 const W = 320;
 const H = 180;
@@ -64,7 +63,7 @@ export class ChartComponent {
 
   private fmt(v: number): string {
     const u = this.spec().unit;
-    if (u === 'brl') return Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : formatBRL(Math.round(v * 100)).replace('R$ ', '');
+    if (u === 'brl') return Math.abs(v) >= 1000 ? `${(Math.round(v / 100) / 10).toLocaleString('pt-BR')}k` : String(Math.round(v));
     if (u === 'percent') return `${Math.round(v * 10) / 10}%`;
     return String(Math.round(v * 100) / 100);
   }
@@ -98,7 +97,10 @@ export class ChartComponent {
   readonly xLabels = computed(() => {
     const labels = this.spec().labels;
     const step = Math.ceil(labels.length / 8); // evita rótulos sobrepostos
-    return labels.map((label, i) => ({ x: this.x(i), label: label.slice(0, 8) })).filter((_, i) => i % step === 0);
+    // Quanto menos barras, mais espaço para o rótulo.
+    const max = labels.length <= 2 ? 28 : labels.length <= 4 ? 14 : 8;
+    const cut = (l: string) => (l.length > max ? l.slice(0, max - 1) + '…' : l);
+    return labels.map((label, i) => ({ x: this.x(i), label: cut(label) })).filter((_, i) => i % step === 0);
   });
 
   readonly bars = computed(() => {

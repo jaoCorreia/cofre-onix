@@ -35,7 +35,7 @@ import { InstallmentRow } from '../../core/data/models';
               <div class="form">
                 <label>Valor extra (R$)<input id="s-extra" inputmode="decimal" [(ngModel)]="extra" (ngModelChange)="touch()" /></label>
                 <label>Seu investimento rende (% a.m. líquido)<input id="s-inv" inputmode="decimal" [(ngModel)]="invRate" (ngModelChange)="touch()" /></label>
-                <label class="full">Sua reserva cobre quantos meses de gastos?<input id="s-res" inputmode="decimal" [(ngModel)]="reserve" (ngModelChange)="touch()" /></label>
+                <label class="full">Sua reserva cobre quantos meses de gastos?<input id="s-res" inputmode="decimal" [(ngModel)]="reserve" (ngModelChange)="touch()" placeholder="Ex.: 4" /></label>
               </div>
 
               @if (sim(); as s) {
@@ -52,8 +52,13 @@ import { InstallmentRow } from '../../core/data/models';
                   </div>
                 </div>
                 <div style="margin-top:10px">
-                  <div class="check"><ion-icon [name]="s.reserveOk ? 'checkmark-circle-outline' : 'alert-circle-outline'" [class.up]="s.reserveOk" [style.color]="s.reserveOk ? null : 'var(--cofre-warn)'" />
-                    <span>{{ s.reserveOk ? 'Reserva acima do mínimo de ' + minReserve + ' meses.' : 'Reserva abaixo de ' + minReserve + ' meses. Complete a reserva antes de amortizar.' }}</span></div>
+                  @if (s.reserveOk === null) {
+                    <div class="check"><ion-icon name="alert-circle-outline" style="color:var(--cofre-warn)" />
+                      <span>Informe quantos meses sua reserva cobre (ou cadastre-a em Investir) antes de decidir amortizar.</span></div>
+                  } @else {
+                    <div class="check"><ion-icon [name]="s.reserveOk ? 'checkmark-circle-outline' : 'alert-circle-outline'" [class.up]="s.reserveOk" [style.color]="s.reserveOk ? null : 'var(--cofre-warn)'" />
+                      <span>{{ s.reserveOk ? 'Reserva acima do mínimo de ' + minReserve + ' meses.' : 'Reserva abaixo de ' + minReserve + ' meses. Complete a reserva antes de amortizar.' }}</span></div>
+                  }
                   <div class="check"><ion-icon [name]="s.debtCostsMore ? 'checkmark-circle-outline' : 'alert-circle-outline'" [class.up]="s.debtCostsMore" [style.color]="s.debtCostsMore ? null : 'var(--cofre-warn)'" />
                     <span>{{ s.debtCostsMore ? 'A dívida custa mais do que seu dinheiro rende. Amortizar compensa.' : 'Seu investimento rende mais que a dívida custa. Manter investido pode valer mais.' }}</span></div>
                   <div class="check"><ion-icon name="book-outline" class="gold" />
@@ -114,7 +119,7 @@ export class DebtDetailPage implements ViewWillEnter {
 
   extra = '1.000,00';
   invRate = '0,8';
-  reserve = '4';
+  reserve = '';
   private version = signal(0);
 
   touch(): void {
@@ -126,8 +131,8 @@ export class DebtDetailPage implements ViewWillEnter {
     const d = this.debt();
     const extra = parseBRL(this.extra);
     const inv = parsePercent(this.invRate);
-    const reserve = Number(this.reserve.replace(',', '.'));
-    if (!d || d.remaining === 0 || !extra || extra <= 0 || inv === null || !Number.isFinite(reserve)) return null;
+    const reserve = this.reserve.trim() ? Number(this.reserve.replace(',', '.')) : null;
+    if (!d || d.remaining === 0 || !extra || extra <= 0 || inv === null || (reserve !== null && !Number.isFinite(reserve))) return null;
     const r = simulatePrepayment({
       balance: d.balance_cents,
       monthlyRate: d.monthly_rate,
@@ -138,7 +143,7 @@ export class DebtDetailPage implements ViewWillEnter {
     return {
       ...r,
       termWins: r.reduceTerm.interestSaved >= r.reducePayment.interestSaved,
-      reserveOk: reserve >= MIN_RESERVE_MONTHS,
+      reserveOk: reserve === null ? null : reserve >= MIN_RESERVE_MONTHS,
       debtCostsMore: d.monthly_rate > inv,
     };
   });
