@@ -6,7 +6,10 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.1
 import {
   evaluateFormula,
   FORMULA_VARIABLES,
+  commitmentRatio,
   ICON_NAMES,
+  INCOME_CATEGORIES,
+  incomeForMonth,
   isKnownIcon,
   MIN_RESERVE_MONTHS,
   parseJsonObject,
@@ -74,15 +77,18 @@ interface DebtRow {
 }
 interface InstRow { debt_id: string; due_date: string | null; payment_cents: number; interest_cents: number }
 interface LoanRow { counterparty: string; direction: 'lent' | 'borrowed'; amount_cents: number; paid_cents: number; due_date: string | null; monthly_rate: number }
+interface IncRow { description: string; category: string; amount_cents: number; received_on: string; recurring: boolean; ended_on: string | null }
 interface InvRow { name: string; kind: string; indexer: string | null; balance_cents: number; monthly_rate: number | null; is_emergency_reserve: boolean }
 
 async function loadContext(db: SupabaseClient, householdId: string, monthlyExpensesCents: number | null) {
-  const [debtsRes, loansRes, invRes] = await Promise.all([
+  const [debtsRes, loansRes, invRes, incRes] = await Promise.all([
     db.from('debts').select('id,name,balance_cents,principal_cents,monthly_rate,system,installments,private').eq('household_id', householdId),
     db.from('loans').select('counterparty,direction,amount_cents,paid_cents,due_date,monthly_rate').eq('household_id', householdId),
     db.from('investments').select('name,kind,indexer,balance_cents,monthly_rate,is_emergency_reserve').eq('household_id', householdId),
+    db.from('incomes').select('description,category,amount_cents,received_on,recurring,ended_on').eq('household_id', householdId),
   ]);
-  for (const r of [debtsRes, loansRes, invRes]) if (r.error) throw r.error;
+  for (const r of [debtsRes, loansRes, invRes, incRes]) if (r.error) throw r.error;
+  const incomes = incRes.data as IncRow[];
   const debtsRaw = debtsRes.data as DebtRow[];
   const ids = debtsRaw.map((d) => d.id);
   const { data: open, error } = ids.length
@@ -98,7 +104,7 @@ async function loadContext(db: SupabaseClient, householdId: string, monthlyExpen
   const loans = (loansRes.data as LoanRow[]).map((l) => ({ ...l, monthly_rate: Number(l.monthly_rate) }));
   const investments = (invRes.data as InvRow[]).map((i) => ({ ...i, monthly_rate: i.monthly_rate === null ? null : Number(i.monthly_rate) }));
   const summary = summarize({ debts, loans, investments, monthlyExpensesCents });
-  return { debts, loans, investments, summary, monthlyExpensesCents };
+  return { debts, loans, investments, incomes, summary, monthlyExpensesCents };
 }
 type Ctx = Awaited<ReturnType<typeof loadContext>>;
 
@@ -118,6 +124,8 @@ function formulaScope(ctx: Ctx) {
     gastos_mensais: reais(ctx.monthlyExpensesCents ?? 0),
     te_devem: reais(s.receivableCents),
     patrimonio: reais(s.netWorthCents),
+    renda_mes: reais(incomeForMonth(ctx.incomes, month).totalCents),
+    comprometimento: Math.round((commitmentRatio(all.filter((i) => i.due_date?.startsWith(month)).reduce((a, i) => a + i.payment_cents, 0), incomeForMonth(ctx.incomes, month).regularCents) ?? 0) * 1000) / 10,
   };
 }
 
@@ -144,6 +152,14 @@ const TOOLS = [
     function: {
       name: 'consultar_investimentos',
       description: 'Lista investimentos, a reserva de emergência, os gastos mensais do lar e quantos meses a reserva cobre.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_receitas',
+      description: 'Renda do lar: receitas dos últimos 12 meses (salário, 13º, extras), renda regular e extra do mês atual e quanto da renda vai para parcelas.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -232,6 +248,28 @@ async function runTool(name: string, args: Record<string, unknown>, ctx: Ctx, at
         reserva_cobre_meses: ctx.summary.reserveMonths ?? 'desconhecido (gastos mensais não informados)',
         minimo_recomendado_meses: MIN_RESERVE_MONTHS,
       };
+    case 'consultar_receitas': {
+      const now = new Date();
+      const month = now.toISOString().slice(0, 7);
+      const m = incomeForMonth(ctx.incomes, month);
+      const due = ctx.debts.flatMap((d) => d.open).filter((i) => i.due_date?.startsWith(month)).reduce((a, i) => a + i.payment_cents, 0);
+      const ratio = commitmentRatio(due, m.regularCents);
+      const history = [];
+      for (let k = 0; k < 12; k++) {
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - k, 1)).toISOString().slice(0, 7);
+        const im = incomeForMonth(ctx.incomes, d);
+        if (im.totalCents) history.push({ mes: d, total: reais(im.totalCents), regular: reais(im.regularCents), extra: reais(im.extraCents) });
+      }
+      return {
+        mes_atual: { total: reais(m.totalCents), regular: reais(m.regularCents), extra: reais(m.extraCents), parcelas: reais(due) },
+        comprometimento_pct: ratio === null ? 'renda não informada' : Math.round(ratio * 1000) / 10,
+        receitas: ctx.incomes.map((i) => ({
+          descricao: i.description, tipo: INCOME_CATEGORIES[i.category as keyof typeof INCOME_CATEGORIES]?.label ?? i.category,
+          valor: reais(i.amount_cents), data: i.received_on, todo_mes: i.recurring, ate: i.ended_on,
+        })),
+        ultimos_12_meses: history,
+      };
+    }
     case 'simular_amortizacao': {
       const d = ctx.debts.find((x) => x.id === args.divida_id);
       if (!d) return { erro: 'dívida não encontrada' };
@@ -276,6 +314,7 @@ async function chat(db: SupabaseClient, hh: { id: string; name: string; monthly_
         `Você é o assistente do Cofre Ônix, app de finanças do lar "${hh.name}". Hoje é ${today}.\n` +
         '- Responda em português do Brasil, de forma curta e clara. Pode usar Markdown simples (negrito, listas, tabelas pequenas).\n' +
         '- Nunca invente números: use as ferramentas de consulta e simulação para qualquer valor.\n' +
+        '- Para perguntas sobre renda, salário ou quanto sobra no mês use consultar_receitas. Mais de 30% da renda em parcelas merece atenção; mais de 40% é risco.\n' +
         '- Para gráficos use criar_grafico; para fórmulas use criar_formula. Depois, comente o resultado em 1 a 3 frases.\n' +
         `- Siga princípios básicos: reserva de emergência de ${MIN_RESERVE_MONTHS} a 6 meses antes de amortizar, quitar primeiro as dívidas mais caras, comparar o custo da dívida com o rendimento líquido dos investimentos.\n` +
         '- Você não altera dados do usuário. Simulações são educativas e não são recomendação de investimento; diga isso quando sugerir uma decisão.\n' +

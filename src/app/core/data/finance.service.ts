@@ -1,8 +1,10 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { FormulaScope } from '../../../domain/ai-tools';
 import { summarize } from '../../../domain/finance';
+import { commitmentLevel, commitmentRatio, incomeForMonth } from '../../../domain/income';
 import { DebtsService } from './debts.service';
 import { HouseholdService } from './household.service';
+import { IncomesService } from './incomes.service';
 import { InvestmentsService } from './investments.service';
 import { LoansService } from './loans.service';
 
@@ -13,6 +15,7 @@ export class FinanceService {
   private loans = inject(LoansService);
   private investments = inject(InvestmentsService);
   private household = inject(HouseholdService);
+  private incomes = inject(IncomesService);
 
   readonly summary = computed(() =>
     summarize({
@@ -22,6 +25,11 @@ export class FinanceService {
       monthlyExpensesCents: this.household.current()?.monthlyExpensesCents ?? null,
     }),
   );
+
+  /** Renda do mês corrente (regular + extra) e quanto dela vai para parcelas. */
+  readonly monthIncome = computed(() => incomeForMonth(this.incomes.incomes(), new Date().toISOString().slice(0, 7)));
+  readonly commitment = computed(() => commitmentRatio(this.debts.dueThisMonthCents(), this.monthIncome().regularCents));
+  readonly commitmentLevel = computed(() => commitmentLevel(this.commitment()));
 
   /** Maior rendimento mensal informado nas aplicações (para o simulador comparar com a dívida). */
   readonly bestInvestmentRate = computed(() => {
@@ -46,10 +54,12 @@ export class FinanceService {
       gastos_mensais: r(this.household.current()?.monthlyExpensesCents ?? 0),
       te_devem: r(s.receivableCents),
       patrimonio: r(s.netWorthCents),
+      renda_mes: r(this.monthIncome().totalCents),
+      comprometimento: Math.round((this.commitment() ?? 0) * 1000) / 10,
     };
   });
 
   async loadAll(): Promise<void> {
-    await Promise.all([this.debts.load(), this.loans.load(), this.investments.load()]);
+    await Promise.all([this.debts.load(), this.loans.load(), this.investments.load(), this.incomes.load()]);
   }
 }

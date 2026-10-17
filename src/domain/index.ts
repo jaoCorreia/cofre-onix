@@ -8,3 +8,4 @@ export * from './finance';
 export * from './document-extraction';
 export * from './markdown';
 export * from './icon-catalog';
+export * from './income';

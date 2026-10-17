@@ -69,6 +69,12 @@ const investments = [
   { id: 'i2', household_id: HH, owner_id: ME, private: false, name: 'Tesouro IPCA+ 2035', kind: 'Tesouro Direto', indexer: 'IPCA + 6,4%', balance_cents: 620000, monthly_rate: 0.0082, is_emergency_reserve: false, icon: 'leaf-outline' },
 ];
 
+const incomes = [
+  { id: 'r1', household_id: HH, owner_id: ME, private: false, description: 'Salário', category: 'salary', amount_cents: 650000, received_on: addMonths(thisMonth(5), -6), recurring: true, ended_on: null, icon: 'briefcase-outline' },
+  { id: 'r2', household_id: HH, owner_id: ME, private: false, description: 'Freela site', category: 'freelance', amount_cents: 120000, received_on: thisMonth(12), recurring: false, ended_on: null, icon: 'construct-outline' },
+  { id: 'r3', household_id: HH, owner_id: ME, private: false, description: '13º salário (1ª parcela)', category: 'thirteenth', amount_cents: 325000, received_on: thisMonth(3), recurring: false, ended_on: null, icon: 'gift-outline' },
+];
+
 const members = [
   { user_id: ME, role: 'owner', joined_at: '2026-10-01T00:00:00Z', email: 'voce@exemplo.com' },
   { user_id: '33333333-3333-4333-8333-333333333333', role: 'editor', joined_at: '2026-10-02T00:00:00Z', email: 'ana@exemplo.com' },
@@ -81,6 +87,7 @@ function rest(url) {
   if (table === 'household_members' && q.get('select')?.includes('households')) return [{ role: 'owner', households: { id: HH, name: 'Casa', monthly_expenses_cents: 300000 } }];
   if (table === 'loans') return loans;
   if (table === 'investments') return investments;
+  if (table === 'incomes') return incomes;
   if (table === 'household_members') return members;
   if (table === 'debts') return [...debts].sort((a, b) => b.monthly_rate - a.monthly_rate);
   if (table === 'installments') {
@@ -137,6 +144,7 @@ const shots = [
   ['07-investimentos', '/investir'],
   ['08-documentos', '/docs'],
   ['09-assistente', '/ia'],
+  ['10-receitas', '/receitas'],
 ];
 for (const [name, path] of shots) {
   await page.goto(`http://localhost:${PORT}/#${path}`);

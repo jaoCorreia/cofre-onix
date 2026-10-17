@@ -2509,7 +2509,9 @@ var FORMULA_VARIABLES = {
   reserva_meses: "Meses de gastos cobertos pela reserva",
   gastos_mensais: "Gastos mensais do lar (R$)",
   te_devem: "Quanto te devem em empr\xE9stimos (R$)",
-  patrimonio: "Patrim\xF4nio l\xEDquido (R$)"
+  patrimonio: "Patrim\xF4nio l\xEDquido (R$)",
+  renda_mes: "Renda recebida no m\xEAs (R$)",
+  comprometimento: "% da renda regular comprometida com parcelas"
 };
 
 // src/domain/finance.ts
@@ -2723,6 +2725,7 @@ var ICON_CATALOG = {
   "tv-outline": ["tv", "televisao", "televis\xE3o", "eletronico", "eletr\xF4nico", "streaming", "netflix"],
   "cart-outline": ["mercado", "supermercado", "compras", "loja", "magazine", "carne"],
   "cash-outline": ["emprestimo", "empr\xE9stimo", "consignado", "pessoal", "dinheiro", "pix", "cheque especial"],
+  "briefcase-outline": ["salario", "sal\xE1rio", "trabalho", "emprego", "pagamento", "holerite", "clt"],
   "business-outline": ["banco", "bradesco", "itau", "ita\xFA", "caixa", "santander", "inter", "empresa", "cnpj"],
   "airplane-outline": ["viagem", "passagem", "aviao", "avi\xE3o", "hotel", "ferias", "f\xE9rias"],
   "flash-outline": ["luz", "energia", "eletricidade", "enel", "cemig", "copel"],
@@ -2758,19 +2761,59 @@ function suggestIcon(text2) {
   return best?.icon ?? null;
 }
 var isKnownIcon = (name) => typeof name === "string" && name in ICON_CATALOG;
+
+// src/domain/income.ts
+var INCOME_CATEGORIES = {
+  salary: { label: "Sal\xE1rio", icon: "briefcase-outline", extra: false },
+  thirteenth: { label: "13\xBA sal\xE1rio", icon: "gift-outline", extra: true },
+  vacation: { label: "F\xE9rias", icon: "airplane-outline", extra: true },
+  freelance: { label: "Freelance / bico", icon: "construct-outline", extra: false },
+  rent: { label: "Aluguel recebido", icon: "home-outline", extra: false },
+  tax_refund: { label: "Restitui\xE7\xE3o do IR", icon: "receipt-outline", extra: true },
+  bonus: { label: "PLR / b\xF4nus", icon: "trending-up-outline", extra: true },
+  other: { label: "Outro", icon: "cash-outline", extra: false }
+};
+function countsInMonth(i, month) {
+  const start = i.received_on.slice(0, 7);
+  if (!i.recurring) return start === month;
+  if (start > month) return false;
+  return !i.ended_on || i.ended_on.slice(0, 7) >= month;
+}
+function incomeForMonth(incomes, month) {
+  let regular = 0;
+  let extra = 0;
+  for (const i of incomes) {
+    if (!countsInMonth(i, month)) continue;
+    if (!i.recurring && INCOME_CATEGORIES[i.category]?.extra) extra += i.amount_cents;
+    else regular += i.amount_cents;
+  }
+  return { totalCents: regular + extra, regularCents: regular, extraCents: extra };
+}
+function commitmentRatio(monthlyPaymentsCents, regularIncomeCents) {
+  return regularIncomeCents > 0 ? monthlyPaymentsCents / regularIncomeCents : null;
+}
+function commitmentLevel(ratio) {
+  if (ratio === null) return "unknown";
+  return ratio <= 0.3 ? "ok" : ratio <= 0.4 ? "attention" : "risk";
+}
 export {
   FORMULA_VARIABLES,
   ICON_CATALOG,
   ICON_NAMES,
+  INCOME_CATEGORIES,
   MIN_RESERVE_MONTHS,
   addMonths,
   adviseExtraMoney,
   annualToMonthly,
+  commitmentLevel,
+  commitmentRatio,
+  countsInMonth,
   evaluateFormula,
   excerptForExtraction,
   formatBRL,
   formatBRLCompact,
   formatPercent,
+  incomeForMonth,
   isKnownIcon,
   netOfIncomeTax,
   normalizeExtraction,

@@ -211,6 +211,8 @@ export const FORMULA_VARIABLES = {
   gastos_mensais: 'Gastos mensais do lar (R$)',
   te_devem: 'Quanto te devem em empréstimos (R$)',
   patrimonio: 'Patrimônio líquido (R$)',
+  renda_mes: 'Renda recebida no mês (R$)',
+  comprometimento: '% da renda regular comprometida com parcelas',
 } as const;
 
 export type FormulaScope = Record<keyof typeof FORMULA_VARIABLES, number>;

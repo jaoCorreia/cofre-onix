@@ -1,4 +1,5 @@
 import type { AmortizationSystem, Cents } from '../../../domain/amortization';
+import type { IncomeCategory } from '../../../domain/income';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 
@@ -98,4 +99,18 @@ export interface DocumentRow {
   mime_type: string | null;
   size_bytes: number | null;
   created_at: string;
+}
+
+export interface Income {
+  id: string;
+  household_id: string;
+  owner_id: string;
+  private: boolean;
+  description: string;
+  category: IncomeCategory;
+  amount_cents: Cents;
+  received_on: string;
+  recurring: boolean;
+  ended_on: string | null;
+  icon: string | null;
 }

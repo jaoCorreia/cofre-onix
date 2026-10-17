@@ -14,7 +14,7 @@ type Tip =
   | { kind: 'set_expenses' }
   | { kind: 'build_reserve'; months: number }
   | { kind: 'keep_invested'; name: string; debtRate: number; invRate: number }
-  | { kind: 'prepay'; id: string; name: string; rate: number; saved: number; mode: 'reduce_term' | 'reduce_payment' };
+  | { kind: 'prepay'; id: string; name: string; rate: number; saved: number; mode: 'reduce_term' | 'reduce_payment'; extra: number; fromIncome: boolean };
 
 @Component({
   selector: 'app-home',
@@ -31,8 +31,19 @@ type Tip =
             <a routerLink="/dividas"><span class="muted">Dívidas</span><b class="num down">{{ brl(s().debtCents) }}</b></a>
             <a routerLink="/investir"><span class="muted">Investido</span><b class="num up">{{ brl(s().investedCents) }}</b></a>
             <a routerLink="/emprestimos"><span class="muted">Te devem</span><b class="num loan">{{ brl(s().receivableCents) }}</b></a>
+            <a routerLink="/receitas"><span class="muted">Recebido no mês</span><b class="num up">{{ brl(finance.monthIncome().totalCents) }}</b></a>
           </div>
-          <div class="muted" style="margin-top:8px">Parcelas deste mês <span class="num">{{ brl(debts.dueThisMonthCents()) }}</span></div>
+          <div class="muted" style="margin-top:8px">
+            Parcelas deste mês <span class="num">{{ brl(debts.dueThisMonthCents()) }}</span>
+            @if (finance.commitment() !== null) {
+              · <span class="pill" [class.ok]="finance.commitmentLevel() === 'ok'" [class.warn]="finance.commitmentLevel() !== 'ok'">{{ pct0(finance.commitment()!) }} da renda</span>
+            }
+          </div>
+          @if (finance.commitmentLevel() === 'risk' || finance.commitmentLevel() === 'attention') {
+            <p class="muted" style="margin:8px 0 0">
+              {{ finance.commitmentLevel() === 'risk' ? 'Mais de 40% da renda vai para parcelas: evite novas dívidas e priorize quitar as mais caras.' : 'Acima de 30% da renda em parcelas: atenção antes de assumir novas dívidas.' }}
+            </p>
+          }
         </section>
 
         <nav class="tiles" aria-label="Ações rápidas">
@@ -58,7 +69,8 @@ type Tip =
               }
               @case ('prepay') {
                 <p class="muted tip">
-                  {{ asPrepay(t).name }} é a dívida mais cara ({{ pct(asPrepay(t).rate) }} a.m.). Com {{ brl(tipExtra) }} extra
+                  @if (asPrepay(t).fromIncome) { Você recebeu dinheiro extra este mês. }
+                  {{ asPrepay(t).name }} é a dívida mais cara ({{ pct(asPrepay(t).rate) }} a.m.). Com {{ brl(asPrepay(t).extra) }} extra
                   {{ asPrepay(t).mode === 'reduce_term' ? 'reduzindo o prazo' : 'reduzindo a parcela' }}, você deixa de pagar
                   <b class="num up">{{ brl(asPrepay(t).saved) }}</b> em juros.
                 </p>
@@ -94,20 +106,20 @@ export class HomePage implements ViewWillEnter {
   readonly household = inject(HouseholdService);
   readonly debts = inject(DebtsService);
   private loans = inject(LoansService);
-  private finance = inject(FinanceService);
+  readonly finance = inject(FinanceService);
   private router = inject(Router);
   readonly brl = formatBRL;
   readonly pct = formatPercent;
-  readonly tipExtra = TIP_EXTRA;
+  readonly pct0 = (r: number) => formatPercent(r, 0);
   readonly minReserve = MIN_RESERVE_MONTHS;
   readonly s = this.finance.summary;
 
   readonly tiles = [
+    { label: 'Recebi', icon: 'wallet-outline', color: 'var(--cofre-gain)', to: '/receitas' },
     { label: 'Paguei', icon: 'checkmark-circle-outline', color: 'var(--cofre-gain)', to: '/dividas' },
     { label: 'Nova dívida', icon: 'add-outline', color: 'var(--cofre-debt)', to: '/dividas/nova' },
     { label: 'Emprestei', icon: 'swap-horizontal-outline', color: 'var(--cofre-loan)', to: '/emprestimos' },
     { label: 'Anexar', icon: 'document-text-outline', color: 'var(--cofre-gold)', to: '/docs' },
-    { label: 'Investir', icon: 'trending-up-outline', color: 'var(--cofre-gain)', to: '/investir' },
     { label: 'Perguntar', icon: 'sparkles-outline', color: 'var(--cofre-gold)', to: '/ia' },
   ];
 
@@ -117,8 +129,11 @@ export class HomePage implements ViewWillEnter {
     if (!open.length) return null;
     const months = this.s().reserveMonths;
     if (months === null) return { kind: 'set_expenses' };
+    // Se entrou dinheiro extra no mês (13º, férias, restituição), a dica usa esse valor.
+    const monthExtra = this.finance.monthIncome().extraCents;
+    const extra = monthExtra > 0 ? monthExtra : TIP_EXTRA;
     const advice = adviseExtraMoney({
-      extra: TIP_EXTRA,
+      extra,
       reserveMonths: months,
       investmentNetMonthlyRate: this.finance.bestInvestmentRate() ?? 0,
       debts: open.map((d) => ({ id: d.id, name: d.name, balance: d.balance_cents, monthlyRate: d.monthly_rate, remaining: d.remaining, system: d.system })),
@@ -130,7 +145,10 @@ export class HomePage implements ViewWillEnter {
       case 'keep_invested':
         return { kind: 'keep_invested', name: debt(advice.debtId).name, debtRate: advice.debtRate, invRate: advice.investmentRate };
       case 'prepay':
-        return { kind: 'prepay', id: advice.debtId, name: debt(advice.debtId).name, rate: debt(advice.debtId).monthly_rate, saved: advice.interestSaved, mode: advice.mode };
+        return {
+          kind: 'prepay', id: advice.debtId, name: debt(advice.debtId).name, rate: debt(advice.debtId).monthly_rate,
+          saved: advice.interestSaved, mode: advice.mode, extra: advice.amount, fromIncome: monthExtra > 0,
+        };
       default:
         return null;
     }

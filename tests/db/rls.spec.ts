@@ -244,3 +244,28 @@ describe('delete_account_data exposto', () => {
     await expect(as(db, esposa, (tx) => tx.query('select delete_account_data($1)', [esposa.id]))).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('receitas', () => {
+  it('editor lança, leitor vê mas não lança, estranho não vê; privada só para quem criou', async () => {
+    const lar2 = await as(db, joao, async (tx) => (await one<{ id: string }>(tx, `select create_household('Lar receitas') id`)).id);
+    const t = await as(db, joao, (tx) => one<{ t: string }>(tx, `select create_invite($1, $2, 'editor') t`, [lar2, esposa.email]));
+    await as(db, esposa, (tx) => tx.query('select accept_invite($1)', [t.t]));
+    const t2 = await as(db, joao, (tx) => one<{ t: string }>(tx, `select create_invite($1, $2, 'viewer') t`, [lar2, leitor.email]));
+    await as(db, leitor, (tx) => tx.query('select accept_invite($1)', [t2.t]));
+
+    const ins = (priv: boolean) =>
+      `insert into incomes (household_id, description, category, amount_cents, received_on, recurring, private) values ('${lar2}', 'Salário', 'salary', 500000, '2026-10-05', true, ${priv})`;
+    await as(db, esposa, (tx) => tx.query(ins(false)));
+    await as(db, joao, (tx) => tx.query(ins(true)));
+    await expect(as(db, leitor, (tx) => tx.query(ins(false)))).rejects.toThrow(/row-level security/);
+
+    await as(db, leitor, async (tx) => expect(await count(tx, `incomes where household_id = '${lar2}'`)).toBe(1));
+    await as(db, joao, async (tx) => expect(await count(tx, `incomes where household_id = '${lar2}'`)).toBe(2));
+    await as(db, estranho, async (tx) => expect(await count(tx, 'incomes')).toBe(0));
+  });
+
+  it('rejeita valor zero e categoria desconhecida', async () => {
+    await expect(as(db, esposa, (tx) => tx.query(`insert into incomes (household_id, description, category, amount_cents, received_on) values ($1, 'x', 'salary', 0, '2026-10-01')`, [hh]))).rejects.toThrow();
+    await expect(as(db, esposa, (tx) => tx.query(`insert into incomes (household_id, description, category, amount_cents, received_on) values ($1, 'x', 'loteria', 10, '2026-10-01')`, [hh]))).rejects.toThrow();
+  });
+});

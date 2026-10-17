@@ -13,6 +13,7 @@ export const ICON_CATALOG: Record<string, string[]> = {
   'tv-outline': ['tv', 'televisao', 'televisão', 'eletronico', 'eletrônico', 'streaming', 'netflix'],
   'cart-outline': ['mercado', 'supermercado', 'compras', 'loja', 'magazine', 'carne'],
   'cash-outline': ['emprestimo', 'empréstimo', 'consignado', 'pessoal', 'dinheiro', 'pix', 'cheque especial'],
+  'briefcase-outline': ['salario', 'salário', 'trabalho', 'emprego', 'pagamento', 'holerite', 'clt'],
   'business-outline': ['banco', 'bradesco', 'itau', 'itaú', 'caixa', 'santander', 'inter', 'empresa', 'cnpj'],
   'airplane-outline': ['viagem', 'passagem', 'aviao', 'avião', 'hotel', 'ferias', 'férias'],
   'flash-outline': ['luz', 'energia', 'eletricidade', 'enel', 'cemig', 'copel'],

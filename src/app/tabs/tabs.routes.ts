@@ -14,6 +14,7 @@ export const routes: Routes = [
       { path: 'ia', loadComponent: () => import('../pages/assistant/assistant.page').then((m) => m.AssistantPage) },
       { path: 'investir', loadComponent: () => import('../pages/investments/investments.page').then((m) => m.InvestmentsPage) },
       { path: 'docs', loadComponent: () => import('../pages/documents/documents.page').then((m) => m.DocumentsPage) },
+      { path: 'receitas', loadComponent: () => import('../pages/incomes/incomes.page').then((m) => m.IncomesPage) },
       { path: 'emprestimos', loadComponent: () => import('../pages/loans/loans.page').then((m) => m.LoansPage) },
       { path: '', redirectTo: 'inicio', pathMatch: 'full' },
     ],

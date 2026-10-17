@@ -1,7 +1,7 @@
 import { addIcons } from 'ionicons';
 import {
   addOutline, airplaneOutline, alertCircleOutline, arrowBackOutline, arrowDownOutline, arrowForwardOutline, arrowUpOutline,
-  bookOutline, businessOutline, calculatorOutline, carOutline, cardOutline, cartOutline, cashOutline, checkmarkCircleOutline,
+  bookOutline, briefcaseOutline, businessOutline, calculatorOutline, carOutline, cardOutline, cartOutline, cashOutline, checkmarkCircleOutline,
   chevronForwardOutline, cloudUploadOutline, constructOutline, copyOutline, createOutline, cutOutline, documentTextOutline,
   fingerPrintOutline, fitnessOutline, flashOutline, giftOutline, homeOutline, laptopOutline, leafOutline, lockClosedOutline,
   logOutOutline, medkitOutline, openOutline, pawOutline, peopleOutline, personOutline, phonePortraitOutline, receiptOutline,
@@ -17,7 +17,7 @@ export const ALL_ICONS = ICON_NAMES;
 export function registerIcons(): void {
   addIcons({
     addOutline, airplaneOutline, alertCircleOutline, arrowBackOutline, arrowDownOutline, arrowForwardOutline, arrowUpOutline,
-    bookOutline, businessOutline, calculatorOutline, carOutline, cardOutline, cartOutline, cashOutline, checkmarkCircleOutline,
+    bookOutline, briefcaseOutline, businessOutline, calculatorOutline, carOutline, cardOutline, cartOutline, cashOutline, checkmarkCircleOutline,
     chevronForwardOutline, cloudUploadOutline, constructOutline, copyOutline, createOutline, cutOutline, documentTextOutline,
     fingerPrintOutline, fitnessOutline, flashOutline, giftOutline, homeOutline, laptopOutline, leafOutline, lockClosedOutline,
     logOutOutline, medkitOutline, openOutline, pawOutline, peopleOutline, personOutline, phonePortraitOutline, receiptOutline,
